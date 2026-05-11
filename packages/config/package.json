@@ -1,0 +1,12 @@
+{
+  "name": "@openchatlab/config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ChatLab 配置读取层：TOML/JSON 文件 + 环境变量 + Zod 校验",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "smol-toml": "^1.3.1",
+    "zod": "^3.24.4"
+  }
+}

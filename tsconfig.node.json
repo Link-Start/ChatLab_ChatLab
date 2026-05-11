@@ -9,7 +9,8 @@
     "src/types/**/*",
     "packages/shared-types/**/*",
     "packages/core/**/*",
-    "packages/node-runtime/**/*"
+    "packages/node-runtime/**/*",
+    "packages/config/**/*"
   ],
   "compilerOptions": {
     "composite": true,
