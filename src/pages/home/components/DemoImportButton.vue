@@ -25,26 +25,83 @@ async function navigateToSession(sessionId: string) {
   }
 }
 
-async function handleImport() {
-  if (!IS_ELECTRON) {
-    error.value = t('home.demo.notAvailableInWeb', 'Demo 导入功能暂仅在桌面端可用')
-    return
-  }
-
-  isImporting.value = true
-  error.value = null
-  stage.value = 'downloading'
-
+async function handleImportElectron() {
   const unsubscribe = window.chatApi.onDemoProgress((progress) => {
     if (progress.stage === 'downloading' || progress.stage === 'importing') {
       stage.value = progress.stage
     }
   })
 
+  const demoLocale = getChatlabSiteLocalePath(settingsStore.locale) || 'en'
+  const result = await window.chatApi.importDemo(demoLocale)
+  unsubscribe()
+  return result
+}
+
+async function handleImportWeb(): Promise<{
+  success: boolean
+  groupSessionId?: string
+  privateSessionId?: string
+  error?: string
+}> {
+  const demoLocale = getChatlabSiteLocalePath(settingsStore.locale) || 'en'
+
+  return new Promise((resolve) => {
+    const ctrl = new AbortController()
+    fetch('/_web/demo/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locale: demoLocale }),
+      signal: ctrl.signal,
+    })
+      .then(async (resp) => {
+        if (!resp.ok || !resp.body) {
+          resolve({ success: false, error: `HTTP ${resp.status}` })
+          return
+        }
+
+        const reader = resp.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+
+          let eventType = ''
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              eventType = line.slice(7)
+            } else if (line.startsWith('data: ')) {
+              const data = JSON.parse(line.slice(6))
+              if (eventType === 'progress') {
+                if (data.stage === 'downloading' || data.stage === 'importing') {
+                  stage.value = data.stage
+                }
+              } else if (eventType === 'result') {
+                resolve(data)
+                return
+              }
+            }
+          }
+        }
+        resolve({ success: false, error: 'Stream ended without result' })
+      })
+      .catch((e) => resolve({ success: false, error: String(e) }))
+  })
+}
+
+async function handleImport() {
+  isImporting.value = true
+  error.value = null
+  stage.value = 'downloading'
+
   try {
-    const demoLocale = getChatlabSiteLocalePath(settingsStore.locale) || 'en'
-    const result = await window.chatApi.importDemo(demoLocale)
-    unsubscribe()
+    const result = IS_ELECTRON ? await handleImportElectron() : await handleImportWeb()
 
     if (result.success && result.groupSessionId) {
       await sessionStore.loadSessions()

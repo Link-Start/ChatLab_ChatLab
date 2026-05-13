@@ -470,6 +470,83 @@ export function registerWebRoutes(server: FastifyInstance, dbManager: DatabaseMa
     return { success: true }
   })
 
+  // ==================== Demo 示例数据 ====================
+
+  const DEMO_BASE_URL = 'https://chatlab.fun/assets/demo'
+
+  server.post<{ Body: { locale?: string } }>('/_web/demo/import', async (request, reply) => {
+    const locale = (request.body as any)?.locale || 'en'
+    const nativeBinding = resolveNativeBinding()
+
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    })
+
+    function sendEvent(event: string, data: unknown) {
+      reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+    }
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chatlab-demo-'))
+    const groupPath = path.join(tmpDir, 'demo-group.json')
+    const privatePath = path.join(tmpDir, 'demo-private.json')
+
+    try {
+      sendEvent('progress', { stage: 'downloading', current: 1, total: 2 })
+      const groupResp = await fetch(`${DEMO_BASE_URL}/${locale}/demo-group.json`, {
+        signal: AbortSignal.timeout(60_000),
+      })
+      if (!groupResp.ok) throw new Error(`Download group demo failed: ${groupResp.status}`)
+      fs.writeFileSync(groupPath, Buffer.from(await groupResp.arrayBuffer()))
+
+      sendEvent('progress', { stage: 'downloading', current: 2, total: 2 })
+      const privateResp = await fetch(`${DEMO_BASE_URL}/${locale}/demo-private.json`, {
+        signal: AbortSignal.timeout(60_000),
+      })
+      if (!privateResp.ok) throw new Error(`Download private demo failed: ${privateResp.status}`)
+      fs.writeFileSync(privatePath, Buffer.from(await privateResp.arrayBuffer()))
+
+      sendEvent('progress', { stage: 'importing', current: 1, total: 2 })
+      const groupResult = await streamImport(dbManager, groupPath, { nativeBinding })
+
+      if (!groupResult.success) throw new Error(groupResult.error || 'Failed to import group demo')
+
+      sendEvent('progress', { stage: 'importing', current: 2, total: 2 })
+      const privateResult = await streamImport(dbManager, privatePath, { nativeBinding })
+
+      if (!privateResult.success) throw new Error(privateResult.error || 'Failed to import private demo')
+
+      sendEvent('progress', { stage: 'done', current: 2, total: 2 })
+      sendEvent('result', {
+        success: true,
+        groupSessionId: groupResult.sessionId,
+        privateSessionId: privateResult.sessionId,
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      sendEvent('progress', { stage: 'error', current: 0, total: 2, message })
+      sendEvent('result', { success: false, error: message })
+    } finally {
+      try {
+        fs.unlinkSync(groupPath)
+      } catch {
+        /* ignore */
+      }
+      try {
+        fs.unlinkSync(privatePath)
+      } catch {
+        /* ignore */
+      }
+      try {
+        fs.rmdirSync(tmpDir)
+      } catch {
+        /* ignore */
+      }
+      reply.raw.end()
+    }
+  })
+
   // ==================== 导入管线 ====================
 
   server.get('/_web/supported-formats', async () => {
