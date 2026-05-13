@@ -25,6 +25,8 @@ export interface HttpServerOptions {
   port?: number
   host?: string
   token?: string
+  /** dist-web/ 目录路径，启用后托管 Web SPA 静态资源 */
+  webRoot?: string
 }
 
 function resolveNativeBinding(): string | undefined {
@@ -87,6 +89,20 @@ export async function startHttpServer(options?: HttpServerOptions): Promise<{
   registerSystemRoutes(server, dbManager)
   registerSessionRoutes(server, dbManager)
   registerWebRoutes(server, dbManager)
+
+  // 托管 Web SPA 静态资源
+  if (options?.webRoot && fs.existsSync(options.webRoot)) {
+    const fastifyStatic = await import('@fastify/static')
+    await server.register(fastifyStatic.default, {
+      root: options.webRoot,
+      prefix: '/',
+      wildcard: false,
+    })
+    // SPA fallback: 所有非 API/非静态文件路由返回 index.html
+    server.setNotFoundHandler(async (_request, reply) => {
+      return reply.sendFile('index.html')
+    })
+  }
 
   await server.listen({ port, host })
 

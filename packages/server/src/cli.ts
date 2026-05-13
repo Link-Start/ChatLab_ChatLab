@@ -21,10 +21,7 @@ import {
 
 const program = new Command()
 
-program
-  .name('chatlab')
-  .description('ChatLab - 聊天记录分析工具')
-  .version('0.0.1')
+program.name('chatlab').description('ChatLab - 聊天记录分析工具').version('0.0.1')
 
 // chatlab sessions - 列出所有会话
 program
@@ -129,7 +126,9 @@ program
     if (options.format === 'json') {
       console.log(JSON.stringify(result, null, 2))
     } else {
-      console.log(`搜索 "${keyword}" - 共 ${result.total} 条结果${result.hasMore ? '（显示前 ' + limit + ' 条）' : ''}:\n`)
+      console.log(
+        `搜索 "${keyword}" - 共 ${result.total} 条结果${result.hasMore ? '（显示前 ' + limit + ' 条）' : ''}:\n`
+      )
       for (const msg of result.messages) {
         const time = new Date(msg.timestamp * 1000).toLocaleString()
         console.log(`  [${time}] ${msg.senderName}: ${msg.content}`)
@@ -275,20 +274,35 @@ program
   .option('--port <port>', '服务端口', '3210')
   .option('--host <host>', '监听地址', '127.0.0.1')
   .option('--token <token>', '自定义 Bearer Token（不指定则从配置文件读取或自动生成）')
+  .option('--web [dir]', '托管 Web 前端静态资源（默认查找 dist-web/）')
   .action(async (options) => {
     const { startHttpServer } = await import('./http')
     const port = parseInt(options.port, 10)
+
+    let webRoot: string | undefined
+    if (options.web !== undefined) {
+      const webDir = typeof options.web === 'string' ? options.web : path.resolve(__dirname, '../../dist-web')
+      if (fs.existsSync(webDir)) {
+        webRoot = path.resolve(webDir)
+      } else {
+        console.warn(`警告: Web 目录不存在: ${webDir}，将仅启动 API 服务`)
+      }
+    }
 
     try {
       const info = await startHttpServer({
         port,
         host: options.host,
         token: options.token || undefined,
+        webRoot,
       })
 
       console.log(`\nChatLab HTTP API 已启动`)
       console.log(`  地址: http://${info.host}:${info.port}`)
       console.log(`  Token: ${info.token}`)
+      if (webRoot) {
+        console.log(`  Web UI: http://${info.host}:${info.port}/`)
+      }
       console.log(`\n示例:`)
       console.log(`  curl -H "Authorization: Bearer ${info.token}" http://${info.host}:${info.port}/api/v1/status`)
       console.log(`\n按 Ctrl+C 停止服务\n`)
