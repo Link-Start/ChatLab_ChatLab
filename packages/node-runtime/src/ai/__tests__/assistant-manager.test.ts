@@ -1,0 +1,152 @@
+import { describe, it, beforeEach } from 'node:test'
+import assert from 'node:assert/strict'
+import { AssistantManager, type AssistantManagerFs, type AssistantManagerDeps } from '../assistant-manager'
+
+function createMemoryFs(): AssistantManagerFs & { files: Map<string, string> } {
+  const files = new Map<string, string>()
+  return {
+    files,
+    ensureDir: () => {
+      /* no-op */
+    },
+    listFiles: (_dir, ext) =>
+      Array.from(files.keys())
+        .filter((f) => f.endsWith(ext))
+        .map((f) => f.split('/').pop()!),
+    readFile: (p) => {
+      const content = files.get(p)
+      if (!content) throw new Error(`File not found: ${p}`)
+      return content
+    },
+    writeFile: (p, content) => files.set(p, content),
+    deleteFile: (p) => files.delete(p),
+    fileExists: (p) => files.has(p),
+    joinPath: (...parts) => parts.join('/'),
+  }
+}
+
+const SAMPLE_BUILTIN = `---
+id: general_cn
+name: 通用助手
+presetQuestions:
+  - 你好
+---
+你是一个通用助手。`
+
+function createManager(opts?: { builtins?: Array<{ id: string; content: string }>; generalIds?: string[] }): {
+  manager: AssistantManager
+  fs: ReturnType<typeof createMemoryFs>
+} {
+  const memFs = createMemoryFs()
+  let idCounter = 0
+  const deps: AssistantManagerDeps = {
+    fs: memFs,
+    assistantsDir: '/data/assistants',
+    builtinRawConfigs: opts?.builtins || [{ id: 'general_cn', content: SAMPLE_BUILTIN }],
+    generalIds: opts?.generalIds || ['general_cn'],
+    generateId: () => `custom_${++idCounter}`,
+  }
+  return { manager: new AssistantManager(deps), fs: memFs }
+}
+
+describe('AssistantManager', () => {
+  let manager: AssistantManager
+  let memFs: ReturnType<typeof createMemoryFs>
+
+  beforeEach(() => {
+    const ctx = createManager()
+    manager = ctx.manager
+    memFs = ctx.fs
+  })
+
+  it('initializes and creates general assistants', () => {
+    const result = manager.init()
+    assert.ok(result.generalCreated)
+    assert.equal(result.total, 1)
+    assert.ok(memFs.files.has('/data/assistants/general_cn.md'))
+  })
+
+  it('does not recreate general if already exists', () => {
+    manager.init()
+    const result2 = manager.init()
+    assert.equal(result2.generalCreated, false)
+  })
+
+  it('getAllAssistants returns summaries', () => {
+    manager.init()
+    const all = manager.getAllAssistants()
+    assert.equal(all.length, 1)
+    assert.equal(all[0].name, '通用助手')
+  })
+
+  it('getAssistantConfig returns full config', () => {
+    manager.init()
+    const config = manager.getAssistantConfig('general_cn')
+    assert.ok(config)
+    assert.equal(config!.systemPrompt, '你是一个通用助手。')
+  })
+
+  it('creates a custom assistant', () => {
+    manager.init()
+    const result = manager.createAssistant({
+      name: 'Custom',
+      systemPrompt: 'Be helpful.',
+      presetQuestions: [],
+    })
+    assert.ok(result.success)
+    assert.ok(result.id)
+    assert.equal(manager.getAllAssistants().length, 2)
+  })
+
+  it('updates an assistant', () => {
+    manager.init()
+    manager.createAssistant({ name: 'Old', systemPrompt: 'x', presetQuestions: [] })
+    const result = manager.updateAssistant('custom_1', { name: 'New' })
+    assert.ok(result.success)
+    assert.equal(manager.getAssistantConfig('custom_1')!.name, 'New')
+  })
+
+  it('deletes a non-general assistant', () => {
+    manager.init()
+    manager.createAssistant({ name: 'ToDelete', systemPrompt: 'x', presetQuestions: [] })
+    const result = manager.deleteAssistant('custom_1')
+    assert.ok(result.success)
+    assert.equal(manager.hasAssistant('custom_1'), false)
+  })
+
+  it('refuses to delete general assistant', () => {
+    manager.init()
+    const result = manager.deleteAssistant('general_cn')
+    assert.equal(result.success, false)
+    assert.ok(result.error)
+  })
+
+  it('resets a builtin assistant', () => {
+    manager.init()
+    manager.updateAssistant('general_cn', { name: 'Modified' })
+    assert.equal(manager.getAssistantConfig('general_cn')!.name, 'Modified')
+
+    const result = manager.resetAssistant('general_cn')
+    assert.ok(result.success)
+    assert.equal(manager.getAssistantConfig('general_cn')!.name, '通用助手')
+  })
+
+  it('imports from raw markdown', () => {
+    manager.init()
+    const md = `---
+id: cloud_test
+name: Cloud Assistant
+presetQuestions: []
+---
+Cloud system prompt.`
+    const result = manager.importAssistantFromMd(md)
+    assert.ok(result.success)
+    assert.equal(result.id, 'cloud_test')
+    assert.equal(manager.hasAssistant('cloud_test'), true)
+  })
+
+  it('isGeneralAssistant checks correctly', () => {
+    assert.ok(manager.isGeneralAssistant('general_cn'))
+    assert.ok(!manager.isGeneralAssistant('custom_1'))
+  })
+})

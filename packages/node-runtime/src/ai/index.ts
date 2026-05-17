@@ -9,6 +9,16 @@ export { AiLogger, extractErrorInfo, extractErrorStack } from './ai-logger'
 
 export type { AssistantConfig, AssistantSummary, SkillDef, SkillSummary } from './types'
 export { parseAssistantFile, serializeAssistant } from './assistant-parser'
+
+// Assistant Manager
+export { AssistantManager } from './assistant-manager'
+export type {
+  AssistantInitResult,
+  AssistantSaveResult,
+  BuiltinAssistantInfo,
+  AssistantManagerFs,
+  AssistantManagerDeps,
+} from './assistant-manager'
 export { parseSkillFile, extractSkillId } from './skill-parser'
 export { AIConversationManager } from './conversations'
 export type {
