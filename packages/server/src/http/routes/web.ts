@@ -12,8 +12,7 @@ import type { FastifyInstance } from 'fastify'
 import type { DatabaseManager } from '@openchatlab/node-runtime'
 import type { TimeFilter } from '@openchatlab/shared-types'
 import {
-  getSessionMeta,
-  getSessionOverview,
+  getSessionInfo,
   getTimeRange,
   getAvailableYears,
   getMemberActivity,
@@ -80,24 +79,13 @@ export function registerWebRoutes(server: FastifyInstance, dbManager: DatabaseMa
       .map((id) => {
         const db = dbManager.open(id)
         if (!db) return null
-        const meta = getSessionMeta(db)
-        if (!meta) return null
-        const overview = getSessionOverview(db)
+        const info = getSessionInfo(db)
+        if (!info) return null
         return {
+          ...info,
           id,
-          name: meta.name,
-          platform: meta.platform,
-          type: meta.type,
-          importedAt: meta.importedAt ?? 0,
-          messageCount: overview.totalMessages,
-          memberCount: overview.totalMembers,
           dbPath: '',
-          groupId: meta.groupId ?? null,
-          groupAvatar: meta.groupAvatar ?? null,
-          ownerId: meta.ownerId ?? null,
           memberAvatar: null,
-          lastMessageTs: overview.lastMessageTs ?? null,
-          summaryCount: 0,
           aiConversationCount: 0,
         }
       })
@@ -106,24 +94,13 @@ export function registerWebRoutes(server: FastifyInstance, dbManager: DatabaseMa
 
   server.get<{ Params: { id: string } }>('/_web/sessions/:id', async (request) => {
     const db = ensureDb(dbManager, request.params.id)
-    const meta = getSessionMeta(db)
-    if (!meta) return null
-    const overview = getSessionOverview(db)
+    const info = getSessionInfo(db)
+    if (!info) return null
     return {
+      ...info,
       id: request.params.id,
-      name: meta.name,
-      platform: meta.platform,
-      type: meta.type,
-      importedAt: meta.importedAt ?? 0,
-      messageCount: overview.totalMessages,
-      memberCount: overview.totalMembers,
       dbPath: '',
-      groupId: meta.groupId ?? null,
-      groupAvatar: meta.groupAvatar ?? null,
-      ownerId: meta.ownerId ?? null,
       memberAvatar: null,
-      lastMessageTs: overview.lastMessageTs ?? null,
-      summaryCount: 0,
       aiConversationCount: 0,
     }
   })

@@ -9,11 +9,16 @@ export {
   searchSessions,
   getSessionMessages,
   getSessionSummaries,
+  buildSessionInfo,
+  getSessionInfo,
+  getSummaryCount,
+  getLastPlatformMessageId,
 } from './session-queries'
 export type {
   SessionMeta,
   SessionOverview,
   SessionInfo,
+  CoreSessionInfo,
   ChatOverviewData,
   SessionSearchItem,
   SessionMessagesData,

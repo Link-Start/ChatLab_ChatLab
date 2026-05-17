@@ -8,6 +8,7 @@
 import type { FastifyInstance } from 'fastify'
 import type { DatabaseManager } from '@openchatlab/node-runtime'
 import {
+  getSessionInfo,
   getSessionMeta,
   getSessionOverview,
   queryMessages,
@@ -35,19 +36,18 @@ export function registerSessionRoutes(server: FastifyInstance, dbManager: Databa
       .map((id) => {
         const db = dbManager.open(id)
         if (!db) return null
-        const meta = getSessionMeta(db)
-        if (!meta) return null
-        const overview = getSessionOverview(db)
+        const info = getSessionInfo(db)
+        if (!info) return null
         return {
           id,
-          name: meta.name,
-          platform: meta.platform,
-          type: meta.type,
-          groupId: meta.groupId || undefined,
-          messageCount: overview.totalMessages,
-          memberCount: overview.totalMembers,
-          firstTimestamp: overview.firstMessageTs,
-          lastTimestamp: overview.lastMessageTs,
+          name: info.name,
+          platform: info.platform,
+          type: info.type,
+          groupId: info.groupId || undefined,
+          messageCount: info.messageCount,
+          memberCount: info.memberCount,
+          firstTimestamp: info.firstMessageTs,
+          lastTimestamp: info.lastMessageTs,
         }
       })
       .filter(Boolean)
@@ -57,19 +57,18 @@ export function registerSessionRoutes(server: FastifyInstance, dbManager: Databa
   // GET /api/v1/sessions/:id — Single session detail
   server.get<{ Params: { id: string } }>('/api/v1/sessions/:id', async (request) => {
     const db = ensureDb(dbManager, request.params.id)
-    const meta = getSessionMeta(db)
-    if (!meta) throw sessionNotFound(request.params.id)
-    const overview = getSessionOverview(db)
+    const info = getSessionInfo(db)
+    if (!info) throw sessionNotFound(request.params.id)
     return successResponse({
       id: request.params.id,
-      name: meta.name,
-      platform: meta.platform,
-      type: meta.type,
-      groupId: meta.groupId || undefined,
-      messageCount: overview.totalMessages,
-      memberCount: overview.totalMembers,
-      firstTimestamp: overview.firstMessageTs,
-      lastTimestamp: overview.lastMessageTs,
+      name: info.name,
+      platform: info.platform,
+      type: info.type,
+      groupId: info.groupId || undefined,
+      messageCount: info.messageCount,
+      memberCount: info.memberCount,
+      firstTimestamp: info.firstMessageTs,
+      lastTimestamp: info.lastMessageTs,
     })
   })
 

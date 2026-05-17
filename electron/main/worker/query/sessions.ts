@@ -1,6 +1,10 @@
 /**
  * 会话管理查询模块
  * 负责会话列表与单会话基础信息查询
+ *
+ * Core session info logic delegated to @openchatlab/core (buildSessionInfo, getSessionMeta, etc.).
+ * This file retains Electron-specific concerns: filesystem scanning, caching, private chat avatar,
+ * dbPath, aiConversationCount, and the getChatOverview cache-first pattern.
  */
 
 import Database from 'better-sqlite3'
@@ -16,20 +20,25 @@ import {
   type OverviewCache,
   type MembersCache,
 } from '../../database/sessionCache'
+import {
+  getSessionMeta,
+  getSessionOverview,
+  buildSessionInfo,
+  getSummaryCount,
+  getLastPlatformMessageId,
+  type SessionOverview,
+} from '@openchatlab/core'
+import type { DatabaseAdapter } from '@openchatlab/core'
 
-interface DbMeta {
-  name: string
-  platform: string
-  type: string
-  imported_at: number
-  group_id: string | null
-  group_avatar: string | null
-  owner_id: string | null
+/**
+ * Wrap a better-sqlite3 Database as a DatabaseAdapter for core query functions.
+ */
+function asCoreDb(db: Database.Database): DatabaseAdapter {
+  return db as unknown as DatabaseAdapter
 }
 
 /**
- * 判断是否为聊天会话数据库
- * 通过核心三表（meta/member/message）存在性快速识别
+ * 判断是否为聊天会话数据库（local fast check, avoids core import overhead for non-session DBs）
  */
 function isChatSessionDb(db: Database.Database): boolean {
   const requiredTableCount = db
@@ -42,8 +51,11 @@ function isChatSessionDb(db: Database.Database): boolean {
  * 获取私聊对方成员的头像
  * 逻辑参考 private-chat/index.vue 的 otherMemberAvatar
  */
-function getPrivateChatMemberAvatar(db: Database.Database, sessionName: string, ownerId: string | null): string | null {
-  // 获取所有非系统消息成员（按消息数排序）
+function getPrivateChatMemberAvatar(
+  db: Database.Database,
+  sessionName: string,
+  ownerId: string | null | undefined
+): string | null {
   const members = db
     .prepare(
       `SELECT
@@ -58,20 +70,32 @@ function getPrivateChatMemberAvatar(db: Database.Database, sessionName: string, 
 
   if (members.length === 0) return null
 
-  // 1. 优先排除 ownerId，找到另一成员的头像
   if (ownerId) {
     const other = members.find((m) => m.platformId !== ownerId)
     if (other?.avatar) return other.avatar
   }
 
-  // 2. 尝试匹配会话名称（私聊名称通常是对方昵称）
   const sameName = members.find((m) => m.name === sessionName)
   if (sameName?.avatar) return sameName.avatar
 
-  // 3. 如果只有两个成员且有 ownerId，取另一个（即使没有头像也返回 null）
-  // 如果没有 ownerId，返回第一个有头像的成员
   const firstWithAvatar = members.find((m) => m.avatar)
   return firstWithAvatar?.avatar || null
+}
+
+/**
+ * Resolve overview from cache (with compute-on-miss), or fall back to live SQL via core.
+ */
+function resolveOverview(db: Database.Database, sessionId: string, cacheDir: string | null): SessionOverview {
+  let cached = cacheDir ? getCache<OverviewCache>(sessionId, CACHE_KEY_OVERVIEW, cacheDir) : null
+  if (!cached && cacheDir) {
+    try {
+      cached = computeAndSetOverviewCache(db, sessionId, cacheDir)
+    } catch {
+      // cache compute failure — fall through to live query
+    }
+  }
+  if (cached) return cached
+  return getSessionOverview(asCoreDb(db))
 }
 
 /**
@@ -94,89 +118,31 @@ export function getAllSessions(): any[] {
       const db = new Database(dbPath)
       db.pragma('journal_mode = WAL')
 
-      // 跳过非聊天会话数据库（例如内部索引库）
       if (!isChatSessionDb(db)) {
         db.close()
         continue
       }
 
-      const meta = db.prepare('SELECT * FROM meta LIMIT 1').get() as DbMeta | undefined
+      const coreDb = asCoreDb(db)
+      const meta = getSessionMeta(coreDb)
 
       if (meta) {
-        // 优先从缓存读取，未命中则实时查询并生成缓存
         const cacheDir = getCacheDir()
-        let overview = getCache<OverviewCache>(sessionId, CACHE_KEY_OVERVIEW, cacheDir)
-        if (!overview && cacheDir) {
-          try {
-            overview = computeAndSetOverviewCache(db, sessionId, cacheDir)
-          } catch {
-            // 缓存计算失败不影响正常流程
-          }
-        }
+        const overview = resolveOverview(db, sessionId, cacheDir)
+        const summaryCount = getSummaryCount(coreDb)
+        const info = buildSessionInfo(meta, overview, summaryCount)
 
-        const messageCount =
-          overview?.totalMessages ??
-          (
-            db
-              .prepare(
-                `SELECT COUNT(*) as count
-               FROM message msg
-               JOIN member m ON msg.sender_id = m.id
-               WHERE COALESCE(m.account_name, '') != '系统消息'`
-              )
-              .get() as { count: number }
-          ).count
-        const memberCount =
-          overview?.totalMembers ??
-          (
-            db
-              .prepare(
-                `SELECT COUNT(*) as count
-               FROM member
-               WHERE COALESCE(account_name, '') != '系统消息'`
-              )
-              .get() as { count: number }
-          ).count
-
-        // 私聊：获取对方成员头像
         let memberAvatar: string | null = null
         if (meta.type === 'private') {
-          memberAvatar = getPrivateChatMemberAvatar(db, meta.name, meta.owner_id)
-        }
-
-        // 摘要数量：安全查询（chat_session 表可能不存在）
-        let summaryCount = 0
-        try {
-          const hasChatSessionTable = db
-            .prepare("SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name='chat_session'")
-            .get() as { cnt: number }
-          if (hasChatSessionTable.cnt > 0) {
-            summaryCount = (
-              db
-                .prepare("SELECT COUNT(*) as count FROM chat_session WHERE summary IS NOT NULL AND summary != ''")
-                .get() as { count: number }
-            ).count
-          }
-        } catch {
-          // 忽略查询错误
+          memberAvatar = getPrivateChatMemberAvatar(db, meta.name, meta.ownerId)
         }
 
         sessions.push({
+          ...info,
           id: sessionId,
-          name: meta.name,
-          platform: meta.platform,
-          type: meta.type,
-          importedAt: meta.imported_at,
-          messageCount,
-          memberCount,
           dbPath,
-          groupId: meta.group_id || null,
-          groupAvatar: meta.group_avatar || null,
-          ownerId: meta.owner_id || null,
-          memberAvatar, // 私聊对方头像
-          lastMessageTs: overview?.lastMessageTs ?? null,
-          summaryCount,
-          aiConversationCount: 0, // 将在 IPC 层由主进程填充
+          memberAvatar,
+          aiConversationCount: 0, // filled by IPC layer
         })
       }
 
@@ -196,101 +162,47 @@ export function getSession(sessionId: string): any | null {
   const db = openDatabase(sessionId)
   if (!db) return null
 
-  const meta = db.prepare('SELECT * FROM meta LIMIT 1').get() as DbMeta | undefined
+  const coreDb = asCoreDb(db)
+  const meta = getSessionMeta(coreDb)
   if (!meta) return null
 
-  const overview = getCache<OverviewCache>(sessionId, CACHE_KEY_OVERVIEW, getCacheDir())
-
-  const messageCount =
-    overview?.totalMessages ??
-    (
-      db
-        .prepare(
-          `SELECT COUNT(*) as count
-         FROM message msg
-         JOIN member m ON msg.sender_id = m.id
-         WHERE COALESCE(m.account_name, '') != '系统消息'`
-        )
-        .get() as { count: number }
-    ).count
-
-  const memberCount =
-    overview?.totalMembers ??
-    (
-      db
-        .prepare(
-          `SELECT COUNT(*) as count
-         FROM member
-         WHERE COALESCE(account_name, '') != '系统消息'`
-        )
-        .get() as { count: number }
-    ).count
-
-  // 时间范围（优先从 cache 获取）
-  const firstTimestamp =
-    overview?.firstMessageTs ??
-    (db.prepare('SELECT MIN(ts) as v FROM message').get() as { v: number | null })?.v ??
-    null
-  const lastTimestamp =
-    overview?.lastMessageTs ?? (db.prepare('SELECT MAX(ts) as v FROM message').get() as { v: number | null })?.v ?? null
-
-  // 最新的 platform_message_id（用于增量边界参考）
-  const lastPmidRow = db
-    .prepare('SELECT platform_message_id FROM message WHERE platform_message_id IS NOT NULL ORDER BY ts DESC LIMIT 1')
-    .get() as { platform_message_id: string } | undefined
+  const overview = resolveOverview(db, sessionId, getCacheDir())
+  const info = buildSessionInfo(meta, overview)
 
   return {
+    ...info,
     id: sessionId,
-    name: meta.name,
-    platform: meta.platform,
-    type: meta.type,
-    importedAt: meta.imported_at,
-    messageCount,
-    memberCount,
     dbPath: getDbPath(sessionId),
-    groupId: meta.group_id || null,
-    groupAvatar: meta.group_avatar || null,
-    ownerId: meta.owner_id || null,
-    firstTimestamp,
-    lastTimestamp,
-    lastPlatformMessageId: lastPmidRow?.platform_message_id ?? null,
+    firstTimestamp: overview.firstMessageTs,
+    lastTimestamp: overview.lastMessageTs,
+    lastPlatformMessageId: getLastPlatformMessageId(coreDb),
   }
 }
 
 /**
  * 获取聊天概览（AI 工具使用）
- * 优先从缓存读取，miss 则计算回填
+ * Cache-first: overview cache + members cache, fallback to live SQL via core.
  */
 export function getChatOverview(sessionId: string, topN: number = 10) {
   const db = openDatabase(sessionId)
   if (!db) return null
 
-  const meta = db.prepare('SELECT * FROM meta LIMIT 1').get() as DbMeta | undefined
+  const coreDb = asCoreDb(db)
+  const meta = getSessionMeta(coreDb)
   if (!meta) return null
 
   const cacheDir = getCacheDir()
+  const overview = resolveOverview(db, sessionId, cacheDir)
 
-  // 读取 overview 缓存
-  let overview = getCache<OverviewCache>(sessionId, CACHE_KEY_OVERVIEW, cacheDir)
-  if (!overview) {
-    try {
-      overview = computeAndSetOverviewCache(db, sessionId, cacheDir)
-    } catch {
-      // fallback: 实时查询
-    }
-  }
-
-  // 读取 members 缓存
   let membersCache = getCache<MembersCache>(sessionId, CACHE_KEY_MEMBERS, cacheDir)
   if (!membersCache) {
     try {
       membersCache = computeAndSetMembersCache(db, sessionId, cacheDir)
     } catch {
-      // fallback: 无成员数据
+      // fallback: no member data
     }
   }
 
-  // 从缓存计算 Top N 活跃成员
   let topMembers: Array<{ id: number; name: string; count: number }> = []
   if (membersCache?.members) {
     topMembers = Object.entries(membersCache.members)
@@ -299,35 +211,14 @@ export function getChatOverview(sessionId: string, topN: number = 10) {
       .slice(0, topN)
   }
 
-  // fallback 统计值
-  const totalMessages =
-    overview?.totalMessages ??
-    (
-      db
-        .prepare(
-          `SELECT COUNT(*) as count FROM message msg
-           JOIN member m ON msg.sender_id = m.id
-           WHERE COALESCE(m.account_name, '') != '系统消息'`
-        )
-        .get() as { count: number }
-    ).count
-
-  const totalMembers =
-    overview?.totalMembers ??
-    (
-      db.prepare(`SELECT COUNT(*) as count FROM member WHERE COALESCE(account_name, '') != '系统消息'`).get() as {
-        count: number
-      }
-    ).count
-
   return {
     name: meta.name,
     platform: meta.platform,
     type: meta.type,
-    totalMessages,
-    totalMembers,
-    firstMessageTs: overview?.firstMessageTs ?? null,
-    lastMessageTs: overview?.lastMessageTs ?? null,
+    totalMessages: overview.totalMessages,
+    totalMembers: overview.totalMembers,
+    firstMessageTs: overview.firstMessageTs,
+    lastMessageTs: overview.lastMessageTs,
     topMembers,
   }
 }

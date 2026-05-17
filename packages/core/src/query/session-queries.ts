@@ -32,6 +32,87 @@ export interface SessionInfo extends SessionMeta {
   overview: SessionOverview
 }
 
+// ==================== Flat session info (for AnalysisSession-like consumers) ====================
+
+/**
+ * Platform-agnostic session info built from meta + overview.
+ * Covers all AnalysisSession fields that are queryable from a single DB.
+ * Platform-specific fields (dbPath, memberAvatar, aiConversationCount) are left to callers.
+ */
+export interface CoreSessionInfo {
+  name: string
+  platform: string
+  type: string
+  importedAt: number
+  messageCount: number
+  memberCount: number
+  groupId: string | null
+  groupAvatar: string | null
+  ownerId: string | null
+  firstMessageTs: number | null
+  lastMessageTs: number | null
+  summaryCount: number
+}
+
+/**
+ * Pure mapper: compose SessionMeta + SessionOverview into flat CoreSessionInfo.
+ * Callers provide the inputs which may come from cache or fresh SQL.
+ */
+export function buildSessionInfo(
+  meta: SessionMeta,
+  overview: SessionOverview,
+  summaryCount: number = 0
+): CoreSessionInfo {
+  return {
+    name: meta.name,
+    platform: meta.platform,
+    type: meta.type,
+    importedAt: meta.importedAt,
+    messageCount: overview.totalMessages,
+    memberCount: overview.totalMembers,
+    groupId: meta.groupId,
+    groupAvatar: meta.groupAvatar,
+    ownerId: meta.ownerId,
+    firstMessageTs: overview.firstMessageTs,
+    lastMessageTs: overview.lastMessageTs,
+    summaryCount,
+  }
+}
+
+/**
+ * Convenience: read meta + overview from DB and return flat CoreSessionInfo.
+ */
+export function getSessionInfo(db: DatabaseAdapter): CoreSessionInfo | null {
+  const meta = getSessionMeta(db)
+  if (!meta) return null
+  const overview = getSessionOverview(db)
+  const sc = getSummaryCount(db)
+  return buildSessionInfo(meta, overview, sc)
+}
+
+/**
+ * Count of chat sessions that have an AI-generated summary.
+ */
+export function getSummaryCount(db: DatabaseAdapter): number {
+  if (!hasTable(db, 'chat_session')) return 0
+  const row = db
+    .prepare("SELECT COUNT(*) as count FROM chat_session WHERE summary IS NOT NULL AND summary != ''")
+    .get() as { count: number } | undefined
+  return row?.count ?? 0
+}
+
+/**
+ * Get the latest platform_message_id (used as incremental import boundary).
+ */
+export function getLastPlatformMessageId(db: DatabaseAdapter): string | null {
+  const row = db
+    .prepare('SELECT platform_message_id FROM message WHERE platform_message_id IS NOT NULL ORDER BY ts DESC LIMIT 1')
+    .get() as { platform_message_id: string } | undefined
+  return row?.platform_message_id ?? null
+}
+
+// ==================== Core identification ====================
+
 /**
  * 判断数据库是否为聊天会话数据库
  * 通过核心三表（meta/member/message）存在性快速识别
