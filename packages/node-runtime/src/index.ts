@@ -88,6 +88,10 @@ export type {
 export type { AgentCoreOptions, AgentCoreEvent, AgentCoreResult, AgentTokenUsage, SimpleHistoryMessage } from './ai'
 export { runAgentCore } from './ai'
 
+// Agent Prompt Builder
+export { buildSystemPrompt } from './ai'
+export type { BuildSystemPromptOptions, OwnerInfo, MentionedMember, SkillContext, TranslateFn } from './ai'
+
 // LLM Model Builder
 export { buildPiModel, normalizeAnthropicBaseUrl, normalizeOpenAICompatibleBaseUrl } from './ai'
 export type { PiModelConfig, BuildPiModelOptions } from './ai'

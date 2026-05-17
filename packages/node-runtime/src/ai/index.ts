@@ -62,6 +62,16 @@ export type { PreprocessingPipelineOptions, PreprocessingPipelineResult } from '
 export type { AgentCoreOptions, AgentCoreEvent, AgentCoreResult, AgentTokenUsage, SimpleHistoryMessage } from './agent'
 export { runAgentCore } from './agent'
 
+// Agent Prompt Builder
+export { buildSystemPrompt } from './agent/prompt-builder'
+export type {
+  BuildSystemPromptOptions,
+  OwnerInfo,
+  MentionedMember,
+  SkillContext,
+  TranslateFn,
+} from './agent/prompt-builder'
+
 // LLM Model Builder
 export { buildPiModel, normalizeAnthropicBaseUrl, normalizeOpenAICompatibleBaseUrl } from './llm-builder'
 export type { PiModelConfig, BuildPiModelOptions } from './llm-builder'
