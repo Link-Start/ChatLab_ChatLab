@@ -7,9 +7,21 @@
 
 export { BetterSqliteAdapter, openBetterSqliteDatabase } from './better-sqlite3-adapter'
 
-// Import data writing
+// Import data writing + perf logging
 export { writeParseResultToDb } from './import'
 export type { ImportMeta, WriteParseResultStats } from './import'
+export {
+  LogLevel,
+  initPerfLog,
+  logPerf,
+  logPerfDetail,
+  resetPerfLog,
+  getCurrentLogFile,
+  logError,
+  logInfo,
+  getErrorCount,
+  logSummary,
+} from './import'
 
 // FTS5 full-text search operations
 export { hasFtsTable, createFtsTable, buildFtsIndex, rebuildFtsIndex, insertFtsEntries, searchByFts } from './fts'
