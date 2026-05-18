@@ -48,10 +48,17 @@ function convertJsonSchemaToParameters(schema: ToolDefinition['inputSchema']) {
   }
 }
 
+export interface AdaptToolsOptions {
+  maxToolResultTokens?: number
+}
+
 export function adaptToolsForAgent(
   tools: ToolDefinition[],
-  getContext: () => ServerToolContext
+  getContext: () => ServerToolContext,
+  options?: AdaptToolsOptions
 ): AgentTool<any, any>[] {
+  const tokenBudget = options?.maxToolResultTokens ?? DEFAULT_MAX_TOOL_RESULT_TOKENS
+
   return tools.map((tool) => ({
     name: tool.name,
     label: tool.name,
@@ -73,7 +80,7 @@ export function adaptToolsForAgent(
           const pipelineResult = applyPreprocessingPipeline({
             rawMessages: result.rawMessages as PreprocessableMessage[],
             locale: ctx.locale,
-            maxToolResultTokens: DEFAULT_MAX_TOOL_RESULT_TOKENS,
+            maxToolResultTokens: tokenBudget,
             truncationStrategy: TOOL_TRUNCATION_STRATEGY[tool.name] ?? 'keep_last',
             extraDetails: (result.data ?? {}) as Record<string, unknown>,
             logger: getServerAiLogger() ?? undefined,

@@ -280,6 +280,8 @@ async function installAiApiShims(): Promise<void> {
             locale: locale || 'zh-CN',
             assistantId,
             compressionConfig: _compressionConfig,
+            ownerInfo: context.ownerInfo,
+            mentionedMembers: context.mentionedMembers,
           },
           signal: abortController.signal,
           onEvent: ({ event, data }) => {

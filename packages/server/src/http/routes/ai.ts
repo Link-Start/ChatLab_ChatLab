@@ -25,9 +25,10 @@ import {
 import type { DataSnapshot, OwnerInfo, MentionedMember } from '@openchatlab/node-runtime'
 import { AGENT_TOOL_REGISTRY } from '@openchatlab/tools'
 import { adaptToolsForAgent } from '../../ai/tool-adapter'
+import { getDefaultAssistantConfig, buildPiModel } from '../../ai/llm-config'
 import { loadAssistantConfig } from '../../ai/assistant-loader'
 import { getAssistantManager, getSkillManagerCore } from '../../ai/manager-factory'
-import { runServerAgent, type AgentStreamEvent } from '../../ai/agent'
+import { runServerAgent, type AgentStreamChunk } from '../../ai/agent'
 import {
   addLlmConfig,
   updateLlmConfig,
@@ -534,13 +535,14 @@ export function registerAiRoutes(
       }
     }
 
+    const llmConfig = getDefaultAssistantConfig(aiDataDir)
+    const maxToolResultPercent = compressionConfig?.maxToolResultPercent ?? 50
+    const contextWindow = llmConfig ? (buildPiModel(llmConfig).contextWindow ?? 128000) : 128000
+    const maxToolResultTokens = Math.floor(contextWindow * (maxToolResultPercent / 100))
+
     const db = (dbManager as any).open?.(sessionId)
     const agentTools = db
-      ? adaptToolsForAgent(AGENT_TOOL_REGISTRY, () => ({
-          db,
-          sessionId,
-          locale,
-        }))
+      ? adaptToolsForAgent(AGENT_TOOL_REGISTRY, () => ({ db, sessionId, locale }), { maxToolResultTokens })
       : []
 
     const skillManager = new SkillManager(aiDataDir)
@@ -558,7 +560,7 @@ export function registerAiRoutes(
       agentTools.push(activateSkillTool as any)
     }
 
-    const onEvent = (event: AgentStreamEvent) => {
+    const onEvent = (event: AgentStreamChunk) => {
       sendSSE(event.type, event)
       if (event.type === 'done') {
         activeAgentAborts.delete(requestId)
