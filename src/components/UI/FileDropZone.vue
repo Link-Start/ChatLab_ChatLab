@@ -125,14 +125,22 @@ async function handleDrop(e: DragEvent) {
 }
 
 async function handleDirectoryDrop(dirEntry: FileSystemDirectoryEntry, fileList: FileList) {
-  // Electron: try to get directory path
+  // Electron: derive directory path from the native file path
   if (fileList.length > 0) {
     try {
       // @ts-expect-error Electron webUtils
-      const dirPath = window.electron?.webUtils?.getPathForFile?.(fileList[0])
-      if (dirPath) {
-        emit('directory-drop', { files: [], dirPath })
-        return
+      const filePath: string | undefined = window.electron?.webUtils?.getPathForFile?.(fileList[0])
+      if (filePath) {
+        // fileList[0] may be the directory itself or a file inside it;
+        // locate the dropped directory name as a path segment to get the correct root
+        const sep = filePath.includes('\\') ? '\\' : '/'
+        const segments = filePath.split(sep)
+        const dirIdx = segments.lastIndexOf(dirEntry.name)
+        if (dirIdx !== -1) {
+          const dirPath = segments.slice(0, dirIdx + 1).join(sep)
+          emit('directory-drop', { files: [], dirPath })
+          return
+        }
       }
     } catch {
       // Not Electron

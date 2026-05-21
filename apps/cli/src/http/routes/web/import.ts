@@ -164,7 +164,8 @@ export function registerImportRoutes(server: FastifyInstance, dbManager: Databas
         if (segments.length > 1) {
           relPath = segments.slice(1).join('/')
         }
-        const targetPath = path.join(tmpDir, relPath)
+        const targetPath = path.resolve(tmpDir, relPath)
+        if (!targetPath.startsWith(tmpDir + path.sep)) continue
         fs.mkdirSync(path.dirname(targetPath), { recursive: true })
         fs.writeFileSync(targetPath, fileBuffers[i].data)
       }
