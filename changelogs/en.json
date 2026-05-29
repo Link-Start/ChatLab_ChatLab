@@ -1,5 +1,41 @@
 [
   {
+    "version": "0.22.1",
+    "date": "2026-05-29",
+    "summary": "Adds session summary detail level settings, and fixes CLI Web batch summary freeze, AI config edit misidentification, and several API credential detection issues.",
+    "changes": [
+      {
+        "type": "feat",
+        "items": [
+          "Add session summary detail level setting with \"Brief\" and \"Standard\" strategies, configurable in AI settings"
+        ]
+      },
+      {
+        "type": "fix",
+        "items": [
+          "Fix missing credential revalidation when changing Base URL in OpenAI-compatible mode",
+          "Fix incorrect API key detection logic to prevent stale key reuse",
+          "Fix stop button not responding immediately during batch summary generation",
+          "[CLI Web] Fix page freeze caused by batch summary generation",
+          "[CLI Web] Fix batch summary generation not honoring the selected session scope",
+          "[CLI Web] Fix third-party AI service misidentified as local when editing config"
+        ]
+      },
+      {
+        "type": "refactor",
+        "items": ["Move session index i18n keys from the storage namespace to the ai namespace"]
+      },
+      {
+        "type": "style",
+        "items": ["Improve chat record list density and message bubble styling"]
+      },
+      {
+        "type": "docs",
+        "items": ["Restructure documentation site navigation and move Quick Start under the Usage section"]
+      }
+    ]
+  },
+  {
     "version": "0.22.0",
     "date": "2026-05-26",
     "summary": "This update improves the default UI styling, adds CLI Web update and storage management features, and strengthens home import, documentation, and multi-platform stability.",
