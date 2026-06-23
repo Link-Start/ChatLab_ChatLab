@@ -252,7 +252,7 @@ describe('LLMConfigStore', () => {
       ],
       defaultAssistant: { configId: 'legacy-openai', modelId: '' },
       fastModel: null,
-    } satisfies AIConfigStore)
+    } as unknown as AIConfigStore)
 
     const storeWithHook = new LLMConfigStore(storage, {
       onApiKeyDeleted: (config) => {
@@ -333,7 +333,7 @@ describe('LLMConfigStore', () => {
       ],
       defaultAssistant: { configId: 'cfg-1', modelId: '' },
       fastModel: null,
-    } satisfies AIConfigStore)
+    } as unknown as AIConfigStore)
     const storeWithHook = new LLMConfigStore(failingStorage, {
       onApiKeyCreated: (config) => {
         return config.name.toLowerCase().replace(/\s+/g, '-')
