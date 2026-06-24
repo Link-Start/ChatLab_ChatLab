@@ -340,6 +340,12 @@ importers:
       sqlite-vec:
         specifier: ^0.1.9
         version: 0.1.9
+      stream-chain:
+        specifier: ^2.2.5
+        version: 2.2.5
+      stream-json:
+        specifier: ^1.9.1
+        version: 1.9.1
       yauzl:
         specifier: ^3.4.0
         version: 3.4.0
