@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.28.0",
+    "date": "2026-06-25",
+    "summary": "Add Google Chat import support, introduce a unified app logger with file rotation, and improve the semantic index experience.",
+    "changes": [
+      {
+        "type": "feat",
+        "items": [
+          "Add Google Chat import support across CLI and Desktop",
+          "Add a unified app logger with automatic file rotation and global uncaught error capture",
+          "Replace disable with remove in semantic index management; fix legacy hash and cap list height",
+          "Preload semantic index model on config save and move it to the AI directory",
+          "Simplify semantic index settings by removing the search result count option in favor of a built-in default"
+        ]
+      },
+      {
+        "type": "fix",
+        "items": ["Declare stream-json/stream-chain dependencies and fix multi-chat scan fallthrough"]
+      },
+      {
+        "type": "docs",
+        "items": ["Add Google Chat to the supported platforms documentation"]
+      }
+    ]
+  },
+  {
     "version": "0.27.2",
     "date": "2026-06-24",
     "summary": "Fix multiple auth profile lifecycle issues, improve analytics service reliability, and bundle missing local embedding runtime dependencies.",

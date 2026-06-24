@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.28.0 (2026-06-25)
+
+> Add Google Chat import support, introduce a unified app logger with file rotation, and improve the semantic index experience.
+
+### ✨ Features
+
+- Add Google Chat import support across CLI and Desktop
+- Add a unified app logger with automatic file rotation and global uncaught error capture
+- Replace disable with remove in semantic index management; fix legacy hash and cap list height
+- Preload semantic index model on config save and move it to the AI directory
+- Simplify semantic index settings by removing the search result count option in favor of a built-in default
+
+### 🐛 Bug Fixes
+
+- Declare stream-json/stream-chain dependencies and fix multi-chat scan fallthrough
+
+### 📝 Documentation
+
+- Add Google Chat to the supported platforms documentation
+
 ## v0.27.2 (2026-06-24)
 
 > Fix multiple auth profile lifecycle issues, improve analytics service reliability, and bundle missing local embedding runtime dependencies.
