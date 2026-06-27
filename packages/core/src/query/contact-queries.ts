@@ -261,7 +261,6 @@ function parseContactAliases(value: string | null): string[] {
     return []
   }
 }
-
 function nonSystemContactMemberCondition(memberAlias: string): string {
   // 系统消息名称会随平台和导出语言变化；联系人候选优先用稳定 sender identity 和消息类型识别伪成员。
   return `(${nonSystemMemberIdentityCondition(memberAlias)}
