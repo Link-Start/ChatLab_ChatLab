@@ -17,7 +17,6 @@ function diagnostics(overrides: Partial<ContactsDiagnostics> = {}): ContactsDiag
     skippedAmbiguousPrivateSessions: 0,
     skippedInvalidPlatformIdMembers: 0,
     skippedFailedSessions: 0,
-    hiddenLowSignalNonFriends: 0,
     warnings: [],
     ...overrides,
   }

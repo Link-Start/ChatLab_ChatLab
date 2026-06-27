@@ -21,8 +21,7 @@
   "filters": {
     "allPools": "All sources",
     "friends": "Friends",
-    "nonFriends": "Groupmates",
-    "showLowSignal": "Show low-signal"
+    "nonFriends": "Groupmates"
   },
   "tabs": {
     "friends": "Friends",
@@ -37,17 +36,12 @@
     "friends": "Friends",
     "group_contacts": "Groupmates"
   },
-  "badge": {
-    "lowSignal": "Low signal"
-  },
   "table": {
     "contact": "Contact",
     "status": "Type"
   },
   "actions": {
     "recompute": "Recompute",
-    "showMoreLowSignal": "Show more low-signal groupmates ({count})",
-    "hideLowSignal": "Hide low-signal groupmates",
     "clearSelection": "Clear selection",
     "viewDetail": "View details for {name}"
   },

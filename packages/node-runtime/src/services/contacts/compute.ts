@@ -16,7 +16,6 @@ import {
   getPrivateContactFacts,
   getSessionMeta,
   isChatSessionDb,
-  isLowSignalNonFriend,
   isNameMatchPlatform,
   resolveOwnerMember,
 } from '@openchatlab/core'
@@ -160,7 +159,7 @@ function computeContacts(options: {
   }
 
   diagnostics.contactsEnabled = diagnostics.activePrivateSessionCount > MIN_PRIVATE_SESSIONS_FOR_CONTACTS
-  const contacts = buildContactItems([...accumulators.values()], diagnostics)
+  const contacts = buildContactItems([...accumulators.values()])
   return { contacts, diagnostics }
 }
 
@@ -251,7 +250,7 @@ function hasGroupContactSignal(facts: ReturnType<typeof getGroupContactFacts>[nu
   return facts.messageCount > 0 || facts.coOccurrenceCount > 0 || facts.replyInteractionCount > 0
 }
 
-function buildContactItems(accumulators: ContactAccumulator[], diagnostics: ContactsDiagnostics): ContactItem[] {
+function buildContactItems(accumulators: ContactAccumulator[]): ContactItem[] {
   const friendInputs = accumulators
     .filter((acc) => acc.isFriend)
     .map((acc) => ({
@@ -276,15 +275,12 @@ function buildContactItems(accumulators: ContactAccumulator[], diagnostics: Cont
 
   for (const input of friendInputs) {
     const score = friendScores.get(input) ?? { score: 0, scoreBreakdown: {} }
-    contacts.push(toContactItem(input.acc, 'friend', false, score))
+    contacts.push(toContactItem(input.acc, 'friend', score))
   }
 
   for (const input of nonFriendInputs) {
     const score = nonFriendScores.get(input) ?? { score: 0, scoreBreakdown: {} }
-    const isLowSignal = isLowSignalNonFriend(input)
-    const item = toContactItem(input.acc, 'non_friend', isLowSignal, score)
-    if (item.isLowSignal) diagnostics.hiddenLowSignalNonFriends++
-    contacts.push(item)
+    contacts.push(toContactItem(input.acc, 'non_friend', score))
   }
 
   return contacts.sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName))
@@ -293,7 +289,6 @@ function buildContactItems(accumulators: ContactAccumulator[], diagnostics: Cont
 function toContactItem(
   acc: ContactAccumulator,
   pool: 'friend' | 'non_friend',
-  isLowSignal: boolean,
   scoring: { score: number; scoreBreakdown: ContactItem['scoreBreakdown'] }
 ): ContactItem {
   const aliases = [...acc.aliases].filter((alias) => alias !== acc.displayName)
@@ -310,7 +305,6 @@ function toContactItem(
     avatar: acc.avatar,
     isFriend: acc.isFriend,
     pool,
-    isLowSignal,
     score: scoring.score,
     scoreBreakdown: {
       ...scoring.scoreBreakdown,
@@ -343,7 +337,6 @@ function createEmptyDiagnostics(): ContactsDiagnostics {
     skippedAmbiguousPrivateSessions: 0,
     skippedInvalidPlatformIdMembers: 0,
     skippedFailedSessions: 0,
-    hiddenLowSignalNonFriends: 0,
     warnings: [],
   }
 }

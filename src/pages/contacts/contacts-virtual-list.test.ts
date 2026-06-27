@@ -18,7 +18,6 @@ function contact(key: string, pool: ContactListItem['pool']): ContactListItem {
     avatar: null,
     isFriend: pool === 'friend',
     pool,
-    isLowSignal: false,
     score: 1,
     scoreBreakdown: {},
     lastInteractionTs: null,

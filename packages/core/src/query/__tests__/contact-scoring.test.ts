@@ -1,5 +1,5 @@
 /**
- * Tests for pure contact scoring and visibility helpers.
+ * Tests for pure contact scoring helpers.
  *
  * Run: pnpm test -- packages/core/src/query/__tests__/contact-scoring.test.ts
  */
@@ -7,11 +7,9 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  MIN_NON_FRIEND_INTERACTIONS_FOR_VISIBLE,
   computeFriendScores,
   computeNonFriendScores,
   computePrivateRegularity,
-  isLowSignalNonFriend,
   rankPercentiles,
 } from '../contact-scoring'
 
@@ -68,22 +66,5 @@ describe('contact scoring helpers', () => {
       assert.ok((result.scoreBreakdown.replyInteractionScore ?? -1) >= 0)
       assert.ok((result.scoreBreakdown.replyInteractionScore ?? 2) <= 1)
     }
-  })
-
-  it('identifies low-signal non-friends with an absolute interaction threshold', () => {
-    assert.equal(
-      isLowSignalNonFriend({
-        coOccurrenceCount: MIN_NON_FRIEND_INTERACTIONS_FOR_VISIBLE - 2,
-        replyInteractionCount: 1,
-      }),
-      true
-    )
-    assert.equal(
-      isLowSignalNonFriend({
-        coOccurrenceCount: MIN_NON_FRIEND_INTERACTIONS_FOR_VISIBLE,
-        replyInteractionCount: 0,
-      }),
-      false
-    )
   })
 })

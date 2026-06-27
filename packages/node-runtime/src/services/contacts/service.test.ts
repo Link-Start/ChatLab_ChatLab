@@ -330,7 +330,7 @@ test('keeps QQ nickname fallback contacts session-scoped', (t) => {
   assert.deepEqual(keys, ['qq:qq-group-a:Alice', 'qq:qq-group-b:Alice'])
 })
 
-test('sorts contacts by score and marks low-signal non-friends', (t) => {
+test('sorts non-friends by score with the public contacts response shape', (t) => {
   const env = new TestEnv()
   t.after(() => env.cleanup())
 
@@ -367,8 +367,34 @@ test('sorts contacts by score and marks low-signal non-friends', (t) => {
     result.contacts.map((contact) => contact.key),
     ['weixin:alice', 'weixin:bob']
   )
-  assert.equal(result.contacts[1].isLowSignal, true)
-  assert.equal(result.diagnostics.hiddenLowSignalNonFriends, 1)
+  assert.deepEqual(Object.keys(result.contacts[1]).sort(), [
+    'aliases',
+    'avatar',
+    'displayName',
+    'isFriend',
+    'key',
+    'lastInteractionTs',
+    'platform',
+    'platformId',
+    'pool',
+    'score',
+    'scoreBreakdown',
+    'searchText',
+    'sessionId',
+    'sessionScoped',
+    'sourceSessions',
+  ])
+  assert.deepEqual(Object.keys(result.diagnostics).sort(), [
+    'activePrivateSessionCount',
+    'contactsEnabled',
+    'privateSessionCount',
+    'skippedAmbiguousPrivateSessions',
+    'skippedFailedSessions',
+    'skippedInvalidPlatformIdMembers',
+    'skippedMissingOwnerSessions',
+    'skippedUnresolvedOwnerSessions',
+    'warnings',
+  ])
 })
 
 function deferred<T>() {
@@ -412,7 +438,6 @@ function makeRuntimeSnapshot(
         avatar: null,
         isFriend: true,
         pool: 'friend',
-        isLowSignal: false,
         score: 1,
         scoreBreakdown: {},
         sourceSessions: [
@@ -436,7 +461,6 @@ function makeRuntimeSnapshot(
       skippedAmbiguousPrivateSessions: 0,
       skippedInvalidPlatformIdMembers: 0,
       skippedFailedSessions: 0,
-      hiddenLowSignalNonFriends: 0,
       warnings: [],
     },
     algorithmVersion: CONTACTS_ALGORITHM_VERSION,
@@ -467,7 +491,6 @@ function makeContact(overrides: Partial<ContactItem> & Pick<ContactItem, 'key' |
     avatar: null,
     isFriend: overrides.pool === 'friend',
     pool: overrides.pool,
-    isLowSignal: false,
     score: overrides.score ?? 0,
     scoreBreakdown: overrides.scoreBreakdown ?? {},
     sourceSessions: overrides.sourceSessions ?? [

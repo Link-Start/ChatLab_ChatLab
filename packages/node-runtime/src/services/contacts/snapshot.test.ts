@@ -31,7 +31,6 @@ function emptyDiagnostics(): ContactsDiagnostics {
     skippedAmbiguousPrivateSessions: 0,
     skippedInvalidPlatformIdMembers: 0,
     skippedFailedSessions: 0,
-    hiddenLowSignalNonFriends: 0,
     warnings: [],
   }
 }

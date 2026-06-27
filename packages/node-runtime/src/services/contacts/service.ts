@@ -6,6 +6,7 @@ import type {
   ContactPool,
   ContactDetailResponse,
   ContactsCacheState,
+  ContactsDiagnostics,
   ContactsResponse,
   ContactsTaskState,
   ContactsTimeRangePreset,
@@ -119,8 +120,9 @@ class DefaultContactsService implements ContactsService {
     const snapshot = this.getSnapshot(timeRangePreset)
     const status = this.getCacheStatus(signature, timeRangePreset)
     const includeSnapshot = status === 'fresh' || (status === 'stale' && options.acceptStale === true)
+    const contact = includeSnapshot ? (snapshot?.contacts.find((item) => item.key === key) ?? null) : null
     return {
-      contact: includeSnapshot ? (snapshot?.contacts.find((contact) => contact.key === key) ?? null) : null,
+      contact: contact ? sanitizeContactItem(contact) : null,
       algorithmVersion: includeSnapshot
         ? (snapshot?.algorithmVersion ?? CONTACTS_ALGORITHM_VERSION)
         : CONTACTS_ALGORITHM_VERSION,
@@ -277,7 +279,7 @@ class DefaultContactsService implements ContactsService {
     return {
       contacts: pageContacts,
       diagnostics: includeSnapshot
-        ? (snapshot?.diagnostics ?? createEmptyContactsDiagnostics())
+        ? sanitizeContactsDiagnostics(snapshot?.diagnostics ?? createEmptyContactsDiagnostics())
         : createEmptyContactsDiagnostics(),
       algorithmVersion: includeSnapshot
         ? (snapshot?.algorithmVersion ?? CONTACTS_ALGORITHM_VERSION)
@@ -330,8 +332,44 @@ function buildContactsStats(contacts: ContactItem[]): { friendsTotal: number; no
 }
 
 function toContactListItem(contact: ContactItem): ContactListItem {
-  const { sourceSessions: _sourceSessions, searchText: _searchText, ...item } = contact
+  const item = sanitizeContactItem(contact)
+  const { sourceSessions: _sourceSessions, searchText: _searchText, ...listItem } = item
+  return listItem
+}
+
+function sanitizeContactItem(contact: ContactItem): ContactItem {
+  const item: ContactItem = {
+    key: contact.key,
+    platform: contact.platform,
+    platformId: contact.platformId,
+    sessionScoped: contact.sessionScoped,
+    displayName: contact.displayName,
+    aliases: contact.aliases,
+    avatar: contact.avatar,
+    isFriend: contact.isFriend,
+    pool: contact.pool,
+    score: contact.score,
+    scoreBreakdown: contact.scoreBreakdown,
+    sourceSessions: contact.sourceSessions,
+    searchText: contact.searchText,
+    lastInteractionTs: contact.lastInteractionTs,
+  }
+  if (contact.sessionId) item.sessionId = contact.sessionId
   return item
+}
+
+function sanitizeContactsDiagnostics(diagnostics: ContactsDiagnostics): ContactsDiagnostics {
+  return {
+    privateSessionCount: diagnostics.privateSessionCount,
+    activePrivateSessionCount: diagnostics.activePrivateSessionCount,
+    contactsEnabled: diagnostics.contactsEnabled,
+    skippedMissingOwnerSessions: diagnostics.skippedMissingOwnerSessions,
+    skippedUnresolvedOwnerSessions: diagnostics.skippedUnresolvedOwnerSessions,
+    skippedAmbiguousPrivateSessions: diagnostics.skippedAmbiguousPrivateSessions,
+    skippedInvalidPlatformIdMembers: diagnostics.skippedInvalidPlatformIdMembers,
+    skippedFailedSessions: diagnostics.skippedFailedSessions,
+    warnings: diagnostics.warnings,
+  }
 }
 
 function normalizePositiveInt(value: number | undefined, fallback: number): number {

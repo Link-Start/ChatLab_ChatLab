@@ -86,14 +86,12 @@ export {
 export type { ContactFactsOptions, ContactMemberRef, GroupContactFacts, PrivateContactFacts } from './contact-queries'
 
 export {
-  MIN_NON_FRIEND_INTERACTIONS_FOR_VISIBLE,
   MIN_PRIVATE_SESSIONS_FOR_CONTACTS,
   computeFriendScore,
   computeFriendScores,
   computeNonFriendScore,
   computeNonFriendScores,
   computePrivateRegularity,
-  isLowSignalNonFriend,
   rankPercentiles,
 } from './contact-scoring'
 export type {
@@ -102,7 +100,6 @@ export type {
   FriendScoreInput,
   NonFriendScoreComponents,
   NonFriendScoreInput,
-  NonFriendSignalInput,
 } from './contact-scoring'
 
 export {

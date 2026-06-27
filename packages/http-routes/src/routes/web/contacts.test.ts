@@ -26,7 +26,6 @@ function emptyContactsResponse(status: ContactsResponse['cache']['status'] = 'mi
       skippedAmbiguousPrivateSessions: 0,
       skippedInvalidPlatformIdMembers: 0,
       skippedFailedSessions: 0,
-      hiddenLowSignalNonFriends: 0,
       warnings: [],
     },
     cache: {

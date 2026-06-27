@@ -21,8 +21,7 @@
   "filters": {
     "allPools": "すべて",
     "friends": "友人",
-    "nonFriends": "グループ仲間",
-    "showLowSignal": "低シグナルを表示"
+    "nonFriends": "グループ仲間"
   },
   "tabs": {
     "friends": "友人",
@@ -37,17 +36,12 @@
     "friends": "友人",
     "group_contacts": "グループ仲間"
   },
-  "badge": {
-    "lowSignal": "低シグナル"
-  },
   "table": {
     "contact": "連絡先",
     "status": "種別"
   },
   "actions": {
     "recompute": "再計算",
-    "showMoreLowSignal": "低シグナルのグループ仲間をさらに表示（{count}）",
-    "hideLowSignal": "低シグナルのグループ仲間を閉じる",
     "clearSelection": "選択を解除",
     "viewDetail": "{name} の詳細を表示"
   },

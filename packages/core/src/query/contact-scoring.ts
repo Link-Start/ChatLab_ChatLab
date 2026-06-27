@@ -1,7 +1,6 @@
 import type { ContactScoreBreakdown } from '@openchatlab/shared-types'
 
 export const MIN_PRIVATE_SESSIONS_FOR_CONTACTS = 10
-export const MIN_NON_FRIEND_INTERACTIONS_FOR_VISIBLE = 5
 
 const FRIEND_SCORE_WEIGHTS = {
   privateMessage: 0.55,
@@ -54,11 +53,6 @@ export interface NonFriendScoreComponents {
 export interface ContactScoringResult {
   score: number
   scoreBreakdown: ContactScoreBreakdown
-}
-
-export interface NonFriendSignalInput {
-  coOccurrenceCount: number
-  replyInteractionCount: number
 }
 
 function clamp01(value: number): number {
@@ -224,9 +218,4 @@ export function computeNonFriendScores<T extends NonFriendScoreInput>(
   }
 
   return result
-}
-
-export function isLowSignalNonFriend(input: NonFriendSignalInput): boolean {
-  const totalInteractions = nonNegative(input.coOccurrenceCount) + nonNegative(input.replyInteractionCount)
-  return totalInteractions < MIN_NON_FRIEND_INTERACTIONS_FOR_VISIBLE
 }

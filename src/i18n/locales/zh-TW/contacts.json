@@ -21,8 +21,7 @@
   "filters": {
     "allPools": "全部來源",
     "friends": "好友",
-    "nonFriends": "群友",
-    "showLowSignal": "顯示低訊號"
+    "nonFriends": "群友"
   },
   "tabs": {
     "friends": "好友",
@@ -37,17 +36,12 @@
     "friends": "好友",
     "group_contacts": "群友"
   },
-  "badge": {
-    "lowSignal": "低訊號"
-  },
   "table": {
     "contact": "聯絡人",
     "status": "類型"
   },
   "actions": {
     "recompute": "重新計算",
-    "showMoreLowSignal": "顯示更多低訊號群友（{count}）",
-    "hideLowSignal": "收起低訊號群友",
     "clearSelection": "取消選中",
     "viewDetail": "查看 {name} 的詳情"
   },

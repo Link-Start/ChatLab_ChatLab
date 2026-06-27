@@ -287,7 +287,6 @@ export interface ContactItem {
   avatar: string | null
   isFriend: boolean
   pool: ContactPool
-  isLowSignal: boolean
   score: number
   scoreBreakdown: ContactScoreBreakdown
   sourceSessions: ContactSourceSession[]
@@ -306,7 +305,6 @@ export interface ContactsDiagnostics {
   skippedAmbiguousPrivateSessions: number
   skippedInvalidPlatformIdMembers: number
   skippedFailedSessions: number
-  hiddenLowSignalNonFriends: number
   warnings: string[]
 }
 
