@@ -1,11 +1,18 @@
 {
   "title": "联系人",
   "subtitle": "已导入 {count} 个私聊会话",
-  "disabled": "当前私聊会话数为 {count}，联系人入口默认在私聊会话数超过 10 后显示。",
+  "disabled": "当前时间范围内有效私聊会话数为 {count}，联系人入口默认在有效私聊会话数超过 10 后显示。",
   "empty": "没有匹配的联系人",
   "emptyValue": "暂无",
   "search": "搜索联系人、ID 或别名",
   "score": "分数 {value}",
+  "timeRange": {
+    "1y": "近1年",
+    "2y": "近2年",
+    "3y": "近3年",
+    "5y": "近5年",
+    "all": "全部"
+  },
   "stats": {
     "total": "联系人",
     "friends": "好友",

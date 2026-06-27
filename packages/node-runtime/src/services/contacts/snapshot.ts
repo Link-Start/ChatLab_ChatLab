@@ -1,24 +1,27 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import type { ContactsTimeRangePreset } from '@openchatlab/shared-types'
 import { appLogger } from '../../logging/app-logger'
 import type { ContactsSnapshot } from './compute'
+import { normalizeContactsTimeRangePreset } from './time-range'
 
-const CONTACTS_SNAPSHOT_FILE = 'contacts-snapshot.json'
 const CONTACTS_SNAPSHOT_TMP_PREFIX = 'contacts-snapshot.tmp-'
 
 export interface ReadContactsSnapshotOptions {
   now?: () => number
 }
 
-export function getContactsSnapshotPath(snapshotDir: string): string {
-  return path.join(snapshotDir, CONTACTS_SNAPSHOT_FILE)
+export function getContactsSnapshotPath(snapshotDir: string, timeRangePreset?: ContactsTimeRangePreset): string {
+  const preset = normalizeContactsTimeRangePreset(timeRangePreset)
+  return path.join(snapshotDir, `contacts-snapshot-${preset}.json`)
 }
 
 export function readContactsSnapshot(
   snapshotDir: string,
+  timeRangePreset?: ContactsTimeRangePreset,
   options: ReadContactsSnapshotOptions = {}
 ): ContactsSnapshot | null {
-  const snapshotPath = getContactsSnapshotPath(snapshotDir)
+  const snapshotPath = getContactsSnapshotPath(snapshotDir, timeRangePreset)
   if (!fs.existsSync(snapshotPath)) return null
 
   try {
@@ -40,7 +43,7 @@ export function writeContactsSnapshot(snapshotDir: string, snapshot: ContactsSna
   if (!fs.existsSync(snapshotDir)) fs.mkdirSync(snapshotDir, { recursive: true })
   const tmpPath = path.join(snapshotDir, `${CONTACTS_SNAPSHOT_TMP_PREFIX}${process.pid}-${Date.now()}`)
   fs.writeFileSync(tmpPath, JSON.stringify(snapshot, null, 2), 'utf-8')
-  fs.renameSync(tmpPath, getContactsSnapshotPath(snapshotDir))
+  fs.renameSync(tmpPath, getContactsSnapshotPath(snapshotDir, snapshot.timeRange.preset))
 }
 
 export function cleanupContactsSnapshotTempFiles(snapshotDir: string): void {

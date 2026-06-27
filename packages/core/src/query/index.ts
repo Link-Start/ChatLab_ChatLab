@@ -77,12 +77,13 @@ export type {
 
 export {
   getGroupContactFacts,
+  getLatestContactMessageTs,
   getNonSystemMembersForContacts,
   getPrivateContactFacts,
   isValidContactPlatformId,
   resolveOwnerMember,
 } from './contact-queries'
-export type { ContactMemberRef, GroupContactFacts, PrivateContactFacts } from './contact-queries'
+export type { ContactFactsOptions, ContactMemberRef, GroupContactFacts, PrivateContactFacts } from './contact-queries'
 
 export {
   MIN_NON_FRIEND_INTERACTIONS_FOR_VISIBLE,

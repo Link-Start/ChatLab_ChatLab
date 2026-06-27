@@ -19,6 +19,7 @@ function emptyContactsResponse(status: ContactsResponse['cache']['status'] = 'mi
     contacts: [],
     diagnostics: {
       privateSessionCount: 0,
+      activePrivateSessionCount: 0,
       contactsEnabled: false,
       skippedMissingOwnerSessions: 0,
       skippedUnresolvedOwnerSessions: 0,
@@ -32,6 +33,11 @@ function emptyContactsResponse(status: ContactsResponse['cache']['status'] = 'mi
       status,
       computedAt: null,
     },
+    timeRange: {
+      preset: '1y',
+      anchorTs: null,
+      startTs: null,
+    },
     algorithmVersion: 'contacts-v1',
     task: {
       id: 'task-1',
@@ -40,22 +46,23 @@ function emptyContactsResponse(status: ContactsResponse['cache']['status'] = 'mi
       finishedAt: null,
       processedSessions: 0,
       totalSessions: 1,
+      timeRangePreset: '1y',
     },
   }
 }
 
 class FakeContactsService implements ContactsService {
-  getCalls: Array<{ acceptStale?: boolean }> = []
-  recomputeCalls = 0
+  getCalls: Array<{ acceptStale?: boolean; timeRangePreset?: string }> = []
+  recomputeCalls: Array<{ timeRangePreset?: string }> = []
   closeCalls = 0
 
-  getContacts(options?: { acceptStale?: boolean }): ContactsResponse {
-    this.getCalls.push({ acceptStale: options?.acceptStale })
+  getContacts(options?: { acceptStale?: boolean; timeRangePreset?: string }): ContactsResponse {
+    this.getCalls.push({ acceptStale: options?.acceptStale, timeRangePreset: options?.timeRangePreset })
     return emptyContactsResponse('missing')
   }
 
-  startRecompute(): ContactsResponse {
-    this.recomputeCalls++
+  startRecompute(options?: { timeRangePreset?: string }): ContactsResponse {
+    this.recomputeCalls.push({ timeRangePreset: options?.timeRangePreset })
     return emptyContactsResponse('stale')
   }
 
@@ -63,7 +70,7 @@ class FakeContactsService implements ContactsService {
     throw new Error('not used in route contract tests')
   }
 
-  close(): void {
+  async close(): Promise<void> {
     this.closeCalls++
   }
 }
@@ -107,7 +114,20 @@ test('GET /_web/contacts returns contacts response with task state', async (t) =
   const body = response.json<ContactsResponse>()
   assert.equal(body.cache.status, 'missing')
   assert.equal(body.task?.status, 'running')
-  assert.deepEqual(service.getCalls, [{ acceptStale: true }])
+  assert.deepEqual(service.getCalls, [{ acceptStale: true, timeRangePreset: '1y' }])
+})
+
+test('GET /_web/contacts forwards explicit time range preset', async (t) => {
+  const service = new FakeContactsService()
+  const app = Fastify()
+  t.after(async () => app.close())
+  registerContactsRoutes(app, createMockContext(service))
+  await app.ready()
+
+  const response = await app.inject({ method: 'GET', url: '/_web/contacts?acceptStale=1&timeRange=2y' })
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(service.getCalls, [{ acceptStale: true, timeRangePreset: '2y' }])
 })
 
 test('POST /_web/contacts/recompute starts or reuses background recompute without waiting for completion', async (t) => {
@@ -123,7 +143,7 @@ test('POST /_web/contacts/recompute starts or reuses background recompute withou
   const body = response.json<ContactsResponse>()
   assert.equal(body.cache.status, 'stale')
   assert.equal(body.task?.status, 'running')
-  assert.equal(service.recomputeCalls, 1)
+  assert.deepEqual(service.recomputeCalls, [{ timeRangePreset: '1y' }])
 })
 
 test('override routes are not registered', async (t) => {

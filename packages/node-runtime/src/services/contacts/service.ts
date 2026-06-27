@@ -1,6 +1,11 @@
 import path from 'node:path'
 import type { PathProvider } from '@openchatlab/core'
-import type { ContactsCacheState, ContactsResponse, ContactsTaskState } from '@openchatlab/shared-types'
+import type {
+  ContactsCacheState,
+  ContactsResponse,
+  ContactsTaskState,
+  ContactsTimeRangePreset,
+} from '@openchatlab/shared-types'
 import type { RuntimeIdentity } from '../../data-dir-compat'
 import { appLogger } from '../../logging/app-logger'
 import type { SessionRuntimeAdapter } from '../adapters'
@@ -12,6 +17,7 @@ import {
 } from './compute'
 import { buildContactsSignature } from './signature'
 import { cleanupContactsSnapshotTempFiles, readContactsSnapshot, writeContactsSnapshot } from './snapshot'
+import { normalizeContactsTimeRangePreset, resolveContactsTimeRange } from './time-range'
 import { createContactsWorkerRunner } from './worker-runner'
 
 const CONTACTS_SNAPSHOT_DIR_NAME = 'contacts'
@@ -19,10 +25,12 @@ const CONTACTS_SNAPSHOT_DIR_NAME = 'contacts'
 export interface ContactsServiceOptions {
   forceRecompute?: boolean
   acceptStale?: boolean
+  timeRangePreset?: ContactsTimeRangePreset
 }
 
 export interface ContactsRunnerOptions {
   signature: string
+  timeRangePreset: ContactsTimeRangePreset
   onProgress: (progress: ContactsComputeProgress) => void
   signal: AbortSignal
 }
@@ -42,7 +50,7 @@ export interface ContactsServiceDeps {
 
 export interface ContactsService {
   getContacts(options?: ContactsServiceOptions): ContactsResponse
-  startRecompute(): ContactsResponse
+  startRecompute(options?: ContactsServiceOptions): ContactsResponse
   invalidateContactsCache(): void
   close(): Promise<void>
   replaceSnapshotForTests?(snapshot: ContactsSnapshot): void
@@ -60,7 +68,7 @@ export function createContactsService(deps: ContactsServiceDeps): ContactsServic
 }
 
 class DefaultContactsService implements ContactsService {
-  private snapshot: ContactsSnapshot | null
+  private readonly snapshots = new Map<ContactsTimeRangePreset, ContactsSnapshot | null>()
   private inFlight: InFlightTask | null = null
   private task: ContactsTaskState = createIdleTaskState()
   private readonly snapshotDir: string
@@ -69,7 +77,6 @@ class DefaultContactsService implements ContactsService {
   constructor(private readonly deps: ContactsServiceDeps) {
     this.snapshotDir = resolveContactsSnapshotDir(deps)
     cleanupContactsSnapshotTempFiles(this.snapshotDir)
-    this.snapshot = readContactsSnapshot(this.snapshotDir, { now: deps.now })
     this.runner =
       deps.runner ??
       createContactsWorkerRunner({
@@ -81,20 +88,22 @@ class DefaultContactsService implements ContactsService {
   }
 
   getContacts(options: ContactsServiceOptions = {}): ContactsResponse {
-    const signature = buildContactsSignature(this.deps.adapter)
-    const cacheStatus = this.getCacheStatus(signature)
-    if (this.shouldStartTaskFromRead(options, cacheStatus)) this.ensureTaskStarted(signature)
-    return this.toResponse(signature, options)
+    const timeRangePreset = normalizeContactsTimeRangePreset(options.timeRangePreset)
+    const signature = buildContactsSignature(this.deps.adapter, timeRangePreset)
+    const cacheStatus = this.getCacheStatus(signature, timeRangePreset)
+    if (this.shouldStartTaskFromRead(options, cacheStatus)) this.ensureTaskStarted(signature, timeRangePreset)
+    return this.toResponse(signature, { ...options, timeRangePreset })
   }
 
-  startRecompute(): ContactsResponse {
-    const signature = buildContactsSignature(this.deps.adapter)
-    this.ensureTaskStarted(signature)
-    return this.toResponse(signature, { acceptStale: true })
+  startRecompute(options: ContactsServiceOptions = {}): ContactsResponse {
+    const timeRangePreset = normalizeContactsTimeRangePreset(options.timeRangePreset)
+    const signature = buildContactsSignature(this.deps.adapter, timeRangePreset)
+    this.ensureTaskStarted(signature, timeRangePreset)
+    return this.toResponse(signature, { acceptStale: true, timeRangePreset })
   }
 
   invalidateContactsCache(): void {
-    this.snapshot = null
+    this.snapshots.clear()
   }
 
   async close(): Promise<void> {
@@ -111,7 +120,7 @@ class DefaultContactsService implements ContactsService {
   }
 
   replaceSnapshotForTests(snapshot: ContactsSnapshot): void {
-    this.snapshot = snapshot
+    this.snapshots.set(snapshot.timeRange.preset, snapshot)
   }
 
   private shouldStartTaskFromRead(options: ContactsServiceOptions, cacheStatus: ContactsCacheState['status']): boolean {
@@ -120,7 +129,7 @@ class DefaultContactsService implements ContactsService {
     return this.task.status !== 'failed'
   }
 
-  private ensureTaskStarted(signature: string): void {
+  private ensureTaskStarted(signature: string, timeRangePreset: ContactsTimeRangePreset): void {
     if (this.inFlight) return
 
     const taskId = `contacts_${this.now()}_${Math.random().toString(36).slice(2)}`
@@ -131,11 +140,13 @@ class DefaultContactsService implements ContactsService {
       finishedAt: null,
       processedSessions: 0,
       totalSessions: this.deps.adapter.listSessionIds().length,
+      timeRangePreset,
     }
 
     const abortController = new AbortController()
     const promise = this.runner({
       signature,
+      timeRangePreset,
       signal: abortController.signal,
       onProgress: (progress) => {
         if (this.task.id !== taskId || this.task.status !== 'running') return
@@ -157,7 +168,7 @@ class DefaultContactsService implements ContactsService {
   private handleTaskSuccess(taskId: string, inputSignature: string, snapshot: ContactsSnapshot): void {
     if (this.inFlight?.id !== taskId) return
     this.inFlight = null
-    const latestSignature = buildContactsSignature(this.deps.adapter)
+    const latestSignature = buildContactsSignature(this.deps.adapter, snapshot.timeRange.preset)
     const finishedAt = this.now()
 
     if (inputSignature !== latestSignature || snapshot.signature !== latestSignature) {
@@ -175,7 +186,7 @@ class DefaultContactsService implements ContactsService {
 
     try {
       writeContactsSnapshot(this.snapshotDir, snapshot)
-      this.snapshot = snapshot
+      this.snapshots.set(snapshot.timeRange.preset, snapshot)
       this.task = {
         ...this.task,
         status: 'succeeded',
@@ -205,14 +216,16 @@ class DefaultContactsService implements ContactsService {
     appLogger.error('contacts', 'contacts worker failed', error)
   }
 
-  private getCacheStatus(signature: string): ContactsCacheState['status'] {
-    if (!this.snapshot) return 'missing'
-    return this.snapshot.signature === signature ? 'fresh' : 'stale'
+  private getCacheStatus(signature: string, timeRangePreset: ContactsTimeRangePreset): ContactsCacheState['status'] {
+    const snapshot = this.getSnapshot(timeRangePreset)
+    if (!snapshot) return 'missing'
+    return snapshot.signature === signature ? 'fresh' : 'stale'
   }
 
   private toResponse(signature: string, options: ContactsServiceOptions = {}): ContactsResponse {
-    const snapshot = this.snapshot
-    const status = this.getCacheStatus(signature)
+    const timeRangePreset = normalizeContactsTimeRangePreset(options.timeRangePreset)
+    const snapshot = this.getSnapshot(timeRangePreset)
+    const status = this.getCacheStatus(signature, timeRangePreset)
     const includeSnapshot = status === 'fresh' || (status === 'stale' && options.acceptStale === true)
     return {
       contacts: includeSnapshot ? (snapshot?.contacts ?? []) : [],
@@ -222,6 +235,7 @@ class DefaultContactsService implements ContactsService {
       algorithmVersion: includeSnapshot
         ? (snapshot?.algorithmVersion ?? CONTACTS_ALGORITHM_VERSION)
         : CONTACTS_ALGORITHM_VERSION,
+      timeRange: snapshot?.timeRange ?? resolveContactsTimeRange(timeRangePreset, null),
       cache: {
         status,
         computedAt: snapshot?.computedAt ?? null,
@@ -230,6 +244,16 @@ class DefaultContactsService implements ContactsService {
       },
       task: this.task,
     }
+  }
+
+  private getSnapshot(timeRangePreset: ContactsTimeRangePreset): ContactsSnapshot | null {
+    if (!this.snapshots.has(timeRangePreset)) {
+      this.snapshots.set(
+        timeRangePreset,
+        readContactsSnapshot(this.snapshotDir, timeRangePreset, { now: this.deps.now })
+      )
+    }
+    return this.snapshots.get(timeRangePreset) ?? null
   }
 
   private now(): number {

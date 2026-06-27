@@ -1,10 +1,18 @@
 import { ChatType } from '@openchatlab/shared-types'
-import type { ChatPlatform, ContactItem, ContactsDiagnostics, ContactSourceSession } from '@openchatlab/shared-types'
+import type {
+  ChatPlatform,
+  ContactItem,
+  ContactsDiagnostics,
+  ContactsTimeRangePreset,
+  ContactsTimeRangeState,
+  ContactSourceSession,
+} from '@openchatlab/shared-types'
 import {
   MIN_PRIVATE_SESSIONS_FOR_CONTACTS,
   computeFriendScores,
   computeNonFriendScores,
   getGroupContactFacts,
+  getLatestContactMessageTs,
   getPrivateContactFacts,
   getSessionMeta,
   isChatSessionDb,
@@ -15,6 +23,7 @@ import {
 import type { ContactMemberRef, SessionMeta } from '@openchatlab/core'
 import { appLogger } from '../../logging/app-logger'
 import type { SessionRuntimeAdapter } from '../adapters'
+import { resolveContactsTimeRange } from './time-range'
 
 export const CONTACTS_ALGORITHM_VERSION = 'contacts-v1'
 
@@ -30,6 +39,7 @@ export interface ContactsSnapshot {
   diagnostics: ContactsDiagnostics
   algorithmVersion: string
   signature: string
+  timeRange: ContactsTimeRangeState
   computedAt: number
   workerStats: ContactsWorkerStats
 }
@@ -43,6 +53,7 @@ export interface ContactsComputeProgress {
 export interface ComputeContactsSnapshotOptions {
   adapter: SessionRuntimeAdapter
   signature: string
+  timeRangePreset?: ContactsTimeRangePreset
   now?: () => number
   onProgress?: (progress: ContactsComputeProgress) => void
 }
@@ -77,9 +88,14 @@ interface BuildContactsResult {
 export function computeContactsSnapshot(options: ComputeContactsSnapshotOptions): ContactsSnapshot {
   const startedAt = options.now?.() ?? Date.now()
   const sessionIds = options.adapter.listSessionIds()
+  const timeRange = resolveContactsTimeRange(
+    options.timeRangePreset,
+    findGlobalLatestMessageTs(options.adapter, sessionIds)
+  )
   const result = computeContacts({
     adapter: options.adapter,
     sessionIds,
+    timeRange,
     onProgress: options.onProgress,
   })
   const finishedAt = options.now?.() ?? Date.now()
@@ -87,6 +103,7 @@ export function computeContactsSnapshot(options: ComputeContactsSnapshotOptions)
     ...result,
     algorithmVersion: CONTACTS_ALGORITHM_VERSION,
     signature: options.signature,
+    timeRange,
     computedAt: finishedAt,
     workerStats: {
       durationMs: Math.max(0, finishedAt - startedAt),
@@ -100,6 +117,7 @@ export function computeContactsSnapshot(options: ComputeContactsSnapshotOptions)
 function computeContacts(options: {
   adapter: SessionRuntimeAdapter
   sessionIds: string[]
+  timeRange: ContactsTimeRangeState
   onProgress?: (progress: ContactsComputeProgress) => void
 }): BuildContactsResult {
   const diagnostics = createEmptyDiagnostics()
@@ -128,9 +146,9 @@ function computeContacts(options: {
       }
 
       if (meta.type === ChatType.PRIVATE) {
-        collectPrivateSession(accumulators, diagnostics, sessionId, meta, owner.id, db)
+        collectPrivateSession(accumulators, diagnostics, sessionId, meta, owner.id, db, options.timeRange)
       } else {
-        collectGroupSession(accumulators, sessionId, meta, owner.id, db)
+        collectGroupSession(accumulators, sessionId, meta, owner.id, db, options.timeRange)
       }
     } catch (error) {
       diagnostics.skippedFailedSessions++
@@ -141,9 +159,24 @@ function computeContacts(options: {
     }
   }
 
-  diagnostics.contactsEnabled = diagnostics.privateSessionCount > MIN_PRIVATE_SESSIONS_FOR_CONTACTS
+  diagnostics.contactsEnabled = diagnostics.activePrivateSessionCount > MIN_PRIVATE_SESSIONS_FOR_CONTACTS
   const contacts = buildContactItems([...accumulators.values()], diagnostics)
   return { contacts, diagnostics }
+}
+
+function findGlobalLatestMessageTs(adapter: SessionRuntimeAdapter, sessionIds: string[]): number | null {
+  let latest: number | null = null
+  for (const sessionId of sessionIds) {
+    try {
+      const db = adapter.openReadonly(sessionId)
+      if (!db || !isChatSessionDb(db)) continue
+      const ts = getLatestContactMessageTs(db)
+      if (ts !== null) latest = Math.max(latest ?? 0, ts)
+    } catch (error) {
+      appLogger.error('contacts', `failed to inspect contact session range: ${sessionId}`, error)
+    }
+  }
+  return latest
 }
 
 function collectPrivateSession(
@@ -152,14 +185,17 @@ function collectPrivateSession(
   sessionId: string,
   meta: SessionMeta,
   ownerMemberId: number,
-  db: Parameters<typeof getPrivateContactFacts>[0]
+  db: Parameters<typeof getPrivateContactFacts>[0],
+  timeRange: ContactsTimeRangeState
 ): void {
-  const facts = getPrivateContactFacts(db, ownerMemberId)
+  const facts = getPrivateContactFacts(db, ownerMemberId, { startTs: timeRange.startTs })
   if (facts.type === 'missing') return
   if (facts.type === 'ambiguous') {
     diagnostics.skippedAmbiguousPrivateSessions++
     return
   }
+  if (facts.privateMessageCount <= 0) return
+  diagnostics.activePrivateSessionCount++
 
   const acc = getOrCreateAccumulator(accumulators, sessionId, meta, facts.contact)
   acc.isFriend = true
@@ -182,9 +218,11 @@ function collectGroupSession(
   sessionId: string,
   meta: SessionMeta,
   ownerMemberId: number,
-  db: Parameters<typeof getGroupContactFacts>[0]
+  db: Parameters<typeof getGroupContactFacts>[0],
+  timeRange: ContactsTimeRangeState
 ): void {
-  for (const facts of getGroupContactFacts(db, ownerMemberId)) {
+  for (const facts of getGroupContactFacts(db, ownerMemberId, { startTs: timeRange.startTs })) {
+    if (!hasGroupContactSignal(facts)) continue
     const acc = getOrCreateAccumulator(accumulators, sessionId, meta, facts.contact)
     acc.commonGroupSessionIds.add(sessionId)
     acc.coOccurrenceCount += facts.coOccurrenceCount
@@ -207,6 +245,10 @@ function collectGroupSession(
       lastInteractionTs: facts.lastInteractionTs,
     })
   }
+}
+
+function hasGroupContactSignal(facts: ReturnType<typeof getGroupContactFacts>[number]): boolean {
+  return facts.messageCount > 0 || facts.coOccurrenceCount > 0 || facts.replyInteractionCount > 0
 }
 
 function buildContactItems(accumulators: ContactAccumulator[], diagnostics: ContactsDiagnostics): ContactItem[] {
@@ -294,6 +336,7 @@ export function createEmptyContactsDiagnostics(): ContactsDiagnostics {
 function createEmptyDiagnostics(): ContactsDiagnostics {
   return {
     privateSessionCount: 0,
+    activePrivateSessionCount: 0,
     contactsEnabled: false,
     skippedMissingOwnerSessions: 0,
     skippedUnresolvedOwnerSessions: 0,

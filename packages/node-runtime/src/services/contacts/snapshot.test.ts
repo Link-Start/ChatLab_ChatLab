@@ -24,6 +24,7 @@ function makeTempDir(): string {
 function emptyDiagnostics(): ContactsDiagnostics {
   return {
     privateSessionCount: 0,
+    activePrivateSessionCount: 0,
     contactsEnabled: false,
     skippedMissingOwnerSessions: 0,
     skippedUnresolvedOwnerSessions: 0,
@@ -41,6 +42,11 @@ function makeSnapshot(signature = 'sig-1'): ContactsSnapshot {
     diagnostics: emptyDiagnostics(),
     algorithmVersion: CONTACTS_ALGORITHM_VERSION,
     signature,
+    timeRange: {
+      preset: '1y',
+      anchorTs: null,
+      startTs: null,
+    },
     computedAt: 1234,
     workerStats: {
       durationMs: 10,
@@ -69,7 +75,7 @@ test('contacts snapshot backs up corrupt json and returns null', (t) => {
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
   fs.writeFileSync(getContactsSnapshotPath(dir), '{ broken')
 
-  assert.equal(readContactsSnapshot(dir, { now: () => 5678 }), null)
+  assert.equal(readContactsSnapshot(dir, '1y', { now: () => 5678 }), null)
 
   assert.equal(fs.existsSync(getContactsSnapshotPath(dir)), false)
   assert.ok(fs.existsSync(path.join(dir, 'contacts-snapshot.corrupt-5678.json')))
@@ -79,10 +85,10 @@ test('contacts snapshot cleanup removes stale temp files only', (t) => {
   const dir = makeTempDir()
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
   fs.writeFileSync(path.join(dir, 'contacts-snapshot.tmp-old'), 'tmp')
-  fs.writeFileSync(path.join(dir, 'contacts-snapshot.json'), '{}')
+  fs.writeFileSync(path.join(dir, 'contacts-snapshot-1y.json'), '{}')
 
   cleanupContactsSnapshotTempFiles(dir)
 
   assert.equal(fs.existsSync(path.join(dir, 'contacts-snapshot.tmp-old')), false)
-  assert.equal(fs.existsSync(path.join(dir, 'contacts-snapshot.json')), true)
+  assert.equal(fs.existsSync(path.join(dir, 'contacts-snapshot-1y.json')), true)
 })

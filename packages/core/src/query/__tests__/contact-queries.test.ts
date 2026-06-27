@@ -215,6 +215,27 @@ describe('contact query helpers', () => {
     assert.equal(facts.type === 'ok' ? facts.privateMessageCount : null, 2)
   })
 
+  it('filters private contact facts by message start timestamp', () => {
+    raw.exec("UPDATE meta SET type = 'private'")
+    raw.exec('DELETE FROM member WHERE id = 3')
+    const insert = raw.prepare(
+      'INSERT INTO message (id, sender_id, ts, type, content, platform_message_id) VALUES (?, ?, ?, ?, ?, ?)'
+    )
+    insert.run(1, 1, 1600000000, 0, 'old owner', 'old-1')
+    insert.run(2, 2, 1600000100, 0, 'old alice', 'old-2')
+    insert.run(3, 2, 1704103200, 0, 'new alice', 'new-1')
+
+    const owner = resolveOwnerMember(db)
+    assert.ok(owner)
+
+    const result = getPrivateContactFacts(db, owner.id, { startTs: 1700000000 })
+
+    assert.equal(result.type, 'ok')
+    assert.equal(result.type === 'ok' ? result.privateMessageCount : 0, 1)
+    assert.deepEqual(result.type === 'ok' ? result.activeMonths : [], ['2024-01'])
+    assert.equal(result.type === 'ok' ? result.lastMessageTs : null, 1704103200)
+  })
+
   it('marks private sessions with multiple non-owner members as ambiguous', () => {
     raw.exec("UPDATE meta SET type = 'private'")
     const owner = resolveOwnerMember(db)
@@ -309,6 +330,31 @@ describe('contact query helpers', () => {
     assert.equal(bob.repliesFromOwnerToContact, 1)
     assert.equal(bob.replyInteractionCount, 1)
     assert.equal(bob.lastInteractionTs, 1704103380)
+  })
+
+  it('filters group contact facts and reply edges by message start timestamp', () => {
+    const owner = resolveOwnerMember(db)
+    assert.ok(owner)
+    const insert = raw.prepare(
+      `INSERT INTO message
+        (id, sender_id, ts, type, content, platform_message_id, reply_to_message_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    insert.run(1, 1, 1600000000, 0, 'old owner', 'old-owner', null)
+    insert.run(2, 2, 1600000001, 0, 'old alice', 'old-alice', 'old-owner')
+    insert.run(3, 1, 1704103200, 0, 'new owner', 'new-owner', null)
+    insert.run(4, 2, 1704103201, 0, 'new alice', 'new-alice', 'new-owner')
+    insert.run(5, 1, 1704103202, 0, 'owner replies old alice', 'new-owner-reply-old', 'old-alice')
+
+    const facts = getGroupContactFacts(db, owner.id, { startTs: 1700000000 })
+    const alice = facts.find((fact) => fact.contact.platformId === 'alice-pid')
+
+    assert.ok(alice)
+    assert.equal(alice.messageCount, 1)
+    assert.equal(alice.replyInteractionCount, 1)
+    assert.equal(alice.repliesFromContactToOwner, 1)
+    assert.equal(alice.repliesFromOwnerToContact, 0)
+    assert.equal(alice.lastInteractionTs, 1704103201)
   })
 
   it('computes owner-contact co-occurrence from nearby group messages', () => {

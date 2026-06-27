@@ -2,7 +2,8 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import type { ContactItem, ContactsResponse } from '@openchatlab/shared-types'
+import { CONTACTS_TIME_RANGE_PRESETS } from '@openchatlab/shared-types'
+import type { ContactItem, ContactsResponse, ContactsTimeRangePreset } from '@openchatlab/shared-types'
 import { useDataService } from '@/services'
 import { useToast } from '@/composables/useToast'
 import { useSubTabsScroll } from '@/composables/useSubTabsScroll'
@@ -21,6 +22,7 @@ const isLoading = ref(true)
 const isRecomputing = ref(false)
 const error = ref('')
 const searchQuery = ref('')
+const timeRangePreset = ref<ContactsTimeRangePreset>('1y')
 const lowSignalExpanded = ref(false)
 const selectedKey = ref<string | null>(null)
 const pollTimer = ref<ReturnType<typeof setInterval> | null>(null)
@@ -30,6 +32,11 @@ const diagnostics = computed(() => response.value?.diagnostics)
 const task = computed(() => response.value?.task)
 const isTaskRunning = computed(() => task.value?.status === 'running')
 const taskFailed = computed(() => task.value?.status === 'failed')
+const showLoadingState = computed(
+  () =>
+    isLoading.value ||
+    (response.value?.cache.status === 'missing' && isTaskRunning.value && contacts.value.length === 0)
+)
 
 const stats = computed(() => {
   const all = contacts.value
@@ -53,6 +60,13 @@ const contactTabs = computed(() => [
     icon: 'i-heroicons-user-group',
   },
 ])
+
+const timeRangeTabs = computed(() =>
+  CONTACTS_TIME_RANGE_PRESETS.map((preset) => ({
+    label: t(`contacts.timeRange.${preset}`),
+    value: preset,
+  }))
+)
 
 const {
   activeNav: activeContactSection,
@@ -127,6 +141,13 @@ watch(
   () => syncContactsPolling()
 )
 
+watch(timeRangePreset, () => {
+  lowSignalExpanded.value = false
+  selectedKey.value = null
+  response.value = null
+  void loadContacts({ acceptStale: true })
+})
+
 onMounted(() => {
   void loadContacts({ acceptStale: true })
 })
@@ -140,8 +161,8 @@ async function loadContacts(options?: { acceptStale?: boolean; force?: boolean }
   error.value = ''
   try {
     const next = options?.force
-      ? await dataService.recomputeContacts()
-      : await dataService.getContacts({ acceptStale: options?.acceptStale })
+      ? await dataService.recomputeContacts({ timeRangePreset: timeRangePreset.value })
+      : await dataService.getContacts({ acceptStale: options?.acceptStale, timeRangePreset: timeRangePreset.value })
     response.value = next
     if (selectedKey.value && !next.contacts.some((contact) => contact.key === selectedKey.value)) {
       selectedKey.value = null
@@ -157,7 +178,7 @@ async function loadContacts(options?: { acceptStale?: boolean; force?: boolean }
 async function recomputeContacts() {
   isRecomputing.value = true
   try {
-    const next = await dataService.recomputeContacts()
+    const next = await dataService.recomputeContacts({ timeRangePreset: timeRangePreset.value })
     response.value = next
     syncContactsPolling()
     toast.success(t('contacts.toast.recomputeStarted'))
@@ -339,6 +360,14 @@ function syncScroll(pool: ContactPoolTab, e: Event) {
       >
         <template #right>
           <div class="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 px-3 py-2 lg:px-0 lg:py-0">
+            <UTabs
+              v-model="timeRangePreset"
+              :items="timeRangeTabs"
+              :content="false"
+              size="xs"
+              class="min-w-max gap-0"
+              :disabled="isTaskRunning"
+            />
             <UInput
               v-model="searchQuery"
               icon="i-lucide-search"
@@ -358,7 +387,7 @@ function syncScroll(pool: ContactPoolTab, e: Event) {
               class="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/50 px-4 py-3.5 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200"
             >
               <UIcon name="i-lucide-alert-triangle" class="h-5 w-5 shrink-0 text-amber-500" />
-              <span>{{ t('contacts.disabled', { count: diagnostics.privateSessionCount }) }}</span>
+              <span>{{ t('contacts.disabled', { count: diagnostics.activePrivateSessionCount }) }}</span>
             </div>
 
             <div
@@ -412,7 +441,7 @@ function syncScroll(pool: ContactPoolTab, e: Event) {
 
             <section class="flex flex-col gap-4">
               <!-- 加载骨架 -->
-              <div v-if="isLoading" class="space-y-8">
+              <div v-if="showLoadingState" class="space-y-8">
                 <div v-for="g in 3" :key="g" class="space-y-4">
                   <!-- 分组骨架标题 -->
                   <div class="flex items-center gap-3">

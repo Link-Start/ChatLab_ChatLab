@@ -1,11 +1,18 @@
 {
   "title": "Contacts",
   "subtitle": "{count} private chats imported",
-  "disabled": "Current private chat count is {count}. The sidebar entry appears after more than 10 private chats.",
+  "disabled": "Current active private chat count in this range is {count}. The sidebar entry appears after more than 10 active private chats.",
   "empty": "No matching contacts",
   "emptyValue": "None",
   "search": "Search contacts, IDs, or aliases",
   "score": "Score {value}",
+  "timeRange": {
+    "1y": "1Y",
+    "2y": "2Y",
+    "3y": "3Y",
+    "5y": "5Y",
+    "all": "All"
+  },
   "stats": {
     "total": "Contacts",
     "friends": "Friends",

@@ -234,6 +234,16 @@ export type ContactsCacheStatus = 'fresh' | 'stale' | 'missing'
 
 export type ContactsTaskStatus = 'idle' | 'running' | 'succeeded' | 'failed' | 'superseded'
 
+export const CONTACTS_TIME_RANGE_PRESETS = ['1y', '2y', '3y', '5y', 'all'] as const
+
+export type ContactsTimeRangePreset = (typeof CONTACTS_TIME_RANGE_PRESETS)[number]
+
+export interface ContactsTimeRangeState {
+  preset: ContactsTimeRangePreset
+  anchorTs: number | null
+  startTs: number | null
+}
+
 export interface ContactScoreBreakdown {
   privateMessageScore?: number
   privateRegularityScore?: number
@@ -287,6 +297,7 @@ export interface ContactItem {
 
 export interface ContactsDiagnostics {
   privateSessionCount: number
+  activePrivateSessionCount: number
   contactsEnabled: boolean
   skippedMissingOwnerSessions: number
   skippedUnresolvedOwnerSessions: number
@@ -311,6 +322,7 @@ export interface ContactsTaskState {
   finishedAt: number | null
   processedSessions: number
   totalSessions: number
+  timeRangePreset?: ContactsTimeRangePreset
   currentSessionId?: string
   lastError?: string
 }
@@ -319,6 +331,7 @@ export interface ContactsResponse {
   contacts: ContactItem[]
   diagnostics: ContactsDiagnostics
   cache: ContactsCacheState
+  timeRange: ContactsTimeRangeState
   algorithmVersion: string
   task?: ContactsTaskState
 }

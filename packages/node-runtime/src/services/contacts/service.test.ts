@@ -12,7 +12,7 @@ import test from 'node:test'
 import { CHAT_DB_SCHEMA } from '@openchatlab/core'
 import type { DatabaseAdapter, PathProvider } from '@openchatlab/core'
 import { ChatType } from '@openchatlab/shared-types'
-import type { ContactsResponse } from '@openchatlab/shared-types'
+import type { ContactsResponse, ContactsTimeRangePreset } from '@openchatlab/shared-types'
 import { openBetterSqliteDatabase } from '../../better-sqlite3-adapter'
 import type { SessionRuntimeAdapter } from '../adapters'
 import { CONTACTS_ALGORITHM_VERSION, computeContactsSnapshot, type ContactsSnapshot } from './compute'
@@ -381,16 +381,25 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-async function waitForTaskSettled(service: { getContacts: (options?: { acceptStale?: boolean }) => ContactsResponse }) {
+async function waitForTaskSettled(
+  service: {
+    getContacts: (options?: { acceptStale?: boolean; timeRangePreset?: ContactsTimeRangePreset }) => ContactsResponse
+  },
+  options: { timeRangePreset?: ContactsTimeRangePreset } = {}
+) {
   for (let i = 0; i < 100; i++) {
-    const response = service.getContacts({ acceptStale: true })
+    const response = service.getContacts({ acceptStale: true, timeRangePreset: options.timeRangePreset })
     if (response.task?.status !== 'running') return response
     await new Promise((resolve) => setTimeout(resolve, 20))
   }
-  return service.getContacts({ acceptStale: true })
+  return service.getContacts({ acceptStale: true, timeRangePreset: options.timeRangePreset })
 }
 
-function makeRuntimeSnapshot(signature: string, computedAt: number): ContactsSnapshot {
+function makeRuntimeSnapshot(
+  signature: string,
+  computedAt: number,
+  timeRangePreset: ContactsTimeRangePreset = '1y'
+): ContactsSnapshot {
   return {
     contacts: [
       {
@@ -420,6 +429,7 @@ function makeRuntimeSnapshot(signature: string, computedAt: number): ContactsSna
     ],
     diagnostics: {
       privateSessionCount: 1,
+      activePrivateSessionCount: 1,
       contactsEnabled: false,
       skippedMissingOwnerSessions: 0,
       skippedUnresolvedOwnerSessions: 0,
@@ -431,6 +441,11 @@ function makeRuntimeSnapshot(signature: string, computedAt: number): ContactsSna
     },
     algorithmVersion: CONTACTS_ALGORITHM_VERSION,
     signature,
+    timeRange: {
+      preset: timeRangePreset,
+      anchorTs: null,
+      startTs: null,
+    },
     computedAt,
     workerStats: {
       durationMs: 10,
@@ -475,9 +490,11 @@ test('returns missing snapshot and starts a background contacts task without syn
   const first = service.getContacts({ acceptStale: true })
 
   assert.equal(runCalls, 1)
+  assert.match(runnerSignature, /range:1y/)
   assert.equal(first.cache.status, 'missing')
   assert.equal(first.contacts.length, 0)
   assert.equal(first.task?.status, 'running')
+  assert.equal(first.task?.timeRangePreset, '1y')
 
   now = 2000
   pending.resolve(makeRuntimeSnapshot(runnerSignature, now))
@@ -486,7 +503,51 @@ test('returns missing snapshot and starts a background contacts task without syn
   assert.equal(finished.cache.status, 'fresh')
   assert.equal(finished.cache.computedAt, 2000)
   assert.equal(finished.contacts[0].key, 'weixin:alice')
+  assert.equal(finished.timeRange.preset, '1y')
   assert.equal(finished.task?.status, 'succeeded')
+})
+
+test('keeps contacts snapshots isolated by time range preset', async (t) => {
+  const env = new TestEnv()
+  t.after(() => env.cleanup())
+
+  env.seed({
+    id: 'private-a',
+    platform: 'weixin',
+    type: 'private',
+    ownerId: 'owner',
+    members: [
+      { id: 1, platformId: 'owner' },
+      { id: 2, platformId: 'alice' },
+    ],
+    messages: privateMessages(5, 1, 1704103200),
+  })
+
+  const pending = deferred<ContactsSnapshot>()
+  let runnerSignature = ''
+  let runnerRange = ''
+  const service = createContactsService({
+    adapter: env.adapter,
+    systemDir: env.dir,
+    runner: ({ signature, timeRangePreset }) => {
+      runnerSignature = signature
+      runnerRange = timeRangePreset
+      return pending.promise
+    },
+  })
+
+  const first = service.getContacts({ acceptStale: true, timeRangePreset: '2y' })
+  assert.equal(first.task?.timeRangePreset, '2y')
+  assert.equal(runnerRange, '2y')
+  assert.match(runnerSignature, /range:2y/)
+
+  pending.resolve(makeRuntimeSnapshot(runnerSignature, 2000, '2y'))
+  const finished = await waitForTaskSettled(service, { timeRangePreset: '2y' })
+
+  assert.equal(finished.cache.status, 'fresh')
+  assert.equal(finished.timeRange.preset, '2y')
+  assert.ok(fs.existsSync(path.join(env.dir, 'contacts-snapshot-2y.json')))
+  assert.equal(fs.existsSync(path.join(env.dir, 'contacts-snapshot-1y.json')), false)
 })
 
 test('returns stale snapshot and reuses one in-flight task after signature changes', async (t) => {
@@ -717,6 +778,7 @@ test('temporary contacts worker computes and persists a fresh snapshot', async (
   const finished = await waitForTaskSettled(service)
   assert.equal(finished.cache.status, 'fresh')
   assert.equal(finished.contacts[0].key, 'weixin:alice')
+  assert.equal(finished.timeRange.preset, '1y')
   assert.equal(finished.task?.status, 'succeeded')
-  assert.ok(fs.existsSync(path.join(env.dir, 'contacts', 'contacts-snapshot.json')))
+  assert.ok(fs.existsSync(path.join(env.dir, 'contacts', 'contacts-snapshot-1y.json')))
 })

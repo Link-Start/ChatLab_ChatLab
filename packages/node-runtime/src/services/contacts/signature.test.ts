@@ -54,9 +54,24 @@ test('contacts signature is stable for sorted session ids and db file versions',
   const signature = buildContactsSignature(adapter)
 
   assert.match(signature, new RegExp(`algorithm:${CONTACTS_ALGORITHM_VERSION}`))
+  assert.match(signature, /range:1y/)
   assert.ok(signature.indexOf('session-a:') < signature.indexOf('session-b:'))
   assert.match(signature, /session-a:[^|]+/)
   assert.match(signature, /session-b:[^|]+/)
+})
+
+test('contacts signature changes by time range preset', (t) => {
+  const dir = makeTempDir()
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
+  const dbPath = path.join(dir, 'session.db')
+  fs.writeFileSync(dbPath, 'db')
+  const adapter = createAdapter(new Map([['session', dbPath]]))
+
+  const recent = buildContactsSignature(adapter, '1y')
+  const all = buildContactsSignature(adapter, 'all')
+
+  assert.notEqual(all, recent)
+  assert.match(all, /range:all/)
 })
 
 test('contacts signature changes when wal file version changes', (t) => {

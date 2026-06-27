@@ -41,6 +41,7 @@ import type {
 import type {
   DataAdapter,
   ContactsFetchOptions,
+  ContactsRecomputeOptions,
   PaginationParams,
   PaginatedResult,
   SQLResult,
@@ -108,12 +109,16 @@ export class FetchDataAdapter implements DataAdapter {
   getContacts(options?: ContactsFetchOptions): Promise<ContactsResponse> {
     const params = new URLSearchParams()
     if (options?.acceptStale) params.set('acceptStale', '1')
+    if (options?.timeRangePreset) params.set('timeRange', options.timeRangePreset)
     const qs = params.toString()
     return get(`/contacts${qs ? `?${qs}` : ''}`)
   }
 
-  recomputeContacts(): Promise<ContactsResponse> {
-    return post('/contacts/recompute', {})
+  recomputeContacts(options?: ContactsRecomputeOptions): Promise<ContactsResponse> {
+    const params = new URLSearchParams()
+    if (options?.timeRangePreset) params.set('timeRange', options.timeRangePreset)
+    const qs = params.toString()
+    return post(`/contacts/recompute${qs ? `?${qs}` : ''}`, {})
   }
 
   // ==================== 时间范围 ====================

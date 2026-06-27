@@ -14,6 +14,10 @@ export interface ContactMemberRef {
   avatar: string | null
 }
 
+export interface ContactFactsOptions {
+  startTs?: number | null
+}
+
 export type PrivateContactFacts =
   | {
       type: 'ok'
@@ -81,38 +85,56 @@ export function getNonSystemMembersForContacts(db: DatabaseAdapter): ContactMemb
   return rows.map(mapContactMemberRow).filter((row) => isValidContactPlatformId(row.platformId))
 }
 
-export function getPrivateContactFacts(db: DatabaseAdapter, ownerMemberId: number): PrivateContactFacts {
+export function getLatestContactMessageTs(db: DatabaseAdapter): number | null {
+  const row = db
+    .prepare(
+      `SELECT MAX(msg.ts) as ts
+       FROM message msg
+       JOIN member m ON msg.sender_id = m.id
+       WHERE ${nonSystemMessageCondition('msg', 'm')}`
+    )
+    .get() as { ts: number | null } | undefined
+
+  return row?.ts ?? null
+}
+
+export function getPrivateContactFacts(
+  db: DatabaseAdapter,
+  ownerMemberId: number,
+  options: ContactFactsOptions = {}
+): PrivateContactFacts {
   const candidates = getNonSystemMembersForContacts(db).filter((member) => member.id !== ownerMemberId)
   if (candidates.length === 0) return { type: 'missing' }
   if (candidates.length > 1) return { type: 'ambiguous', candidates }
 
+  const timeFilter = createMessageTimeFilter('msg', options.startTs)
   const countRow = db
     .prepare(
       `SELECT COUNT(*) as count
        FROM message msg
        JOIN member m ON msg.sender_id = m.id
-       WHERE ${nonSystemMessageCondition('msg', 'm')}`
+       WHERE ${nonSystemMessageCondition('msg', 'm')}${timeFilter.sql}`
     )
-    .get() as { count: number } | undefined
+    .get(...timeFilter.params) as { count: number } | undefined
 
   const monthRows = db
     .prepare(
       `SELECT DISTINCT strftime('%Y-%m', msg.ts, 'unixepoch', 'localtime') as month
        FROM message msg
        JOIN member m ON msg.sender_id = m.id
-       WHERE ${nonSystemMessageCondition('msg', 'm')}
+       WHERE ${nonSystemMessageCondition('msg', 'm')}${timeFilter.sql}
        ORDER BY month ASC`
     )
-    .all() as Array<{ month: string }>
+    .all(...timeFilter.params) as Array<{ month: string }>
 
   const lastRow = db
     .prepare(
       `SELECT MAX(msg.ts) as lastMessageTs
        FROM message msg
        JOIN member m ON msg.sender_id = m.id
-       WHERE ${nonSystemMessageCondition('msg', 'm')}`
+       WHERE ${nonSystemMessageCondition('msg', 'm')}${timeFilter.sql}`
     )
-    .get() as { lastMessageTs: number | null } | undefined
+    .get(...timeFilter.params) as { lastMessageTs: number | null } | undefined
 
   return {
     type: 'ok',
@@ -123,17 +145,22 @@ export function getPrivateContactFacts(db: DatabaseAdapter, ownerMemberId: numbe
   }
 }
 
-export function getGroupContactFacts(db: DatabaseAdapter, ownerMemberId: number): GroupContactFacts[] {
+export function getGroupContactFacts(
+  db: DatabaseAdapter,
+  ownerMemberId: number,
+  options: ContactFactsOptions = {}
+): GroupContactFacts[] {
   const contacts = getNonSystemMembersForContacts(db).filter((member) => member.id !== ownerMemberId)
+  const messageTimeFilter = createMessageTimeFilter('msg', options.startTs)
   const messageRows = db
     .prepare(
       `SELECT msg.sender_id as senderId, COUNT(*) as messageCount
        FROM message msg
        JOIN member m ON msg.sender_id = m.id
-       WHERE ${nonSystemMessageCondition('msg', 'm')}
+       WHERE ${nonSystemMessageCondition('msg', 'm')}${messageTimeFilter.sql}
        GROUP BY msg.sender_id`
     )
-    .all() as Array<{ senderId: number; messageCount: number }>
+    .all(...messageTimeFilter.params) as Array<{ senderId: number; messageCount: number }>
 
   const messageCounts = new Map(messageRows.map((row) => [row.senderId, row.messageCount]))
   const contactById = new Map(contacts.map((contact) => [contact.id, contact]))
@@ -142,10 +169,10 @@ export function getGroupContactFacts(db: DatabaseAdapter, ownerMemberId: number)
       `SELECT msg.sender_id as senderId, msg.ts as ts
        FROM message msg
        JOIN member m ON msg.sender_id = m.id
-       WHERE ${nonSystemMessageCondition('msg', 'm')}
+       WHERE ${nonSystemMessageCondition('msg', 'm')}${messageTimeFilter.sql}
        ORDER BY msg.ts ASC, msg.id ASC`
     )
-    .all() as Array<{ senderId: number; ts: number }>
+    .all(...messageTimeFilter.params) as Array<{ senderId: number; ts: number }>
   const coOccurrenceStats = new Map<
     number,
     { coOccurrenceCount: number; coOccurrenceRawScore: number; lastOccurrenceTs: number }
@@ -175,6 +202,7 @@ export function getGroupContactFacts(db: DatabaseAdapter, ownerMemberId: number)
     }
   >()
 
+  const replyTimeFilter = createReplyTimeFilter(options.startTs)
   const replyRows = db
     .prepare(
       `SELECT
@@ -187,9 +215,9 @@ export function getGroupContactFacts(db: DatabaseAdapter, ownerMemberId: number)
        JOIN member targetMember ON target.sender_id = targetMember.id
        WHERE msg.reply_to_message_id IS NOT NULL
          AND ${nonSystemMessageCondition('msg', 'sender')}
-         AND ${nonSystemMessageCondition('target', 'targetMember')}`
+         AND ${nonSystemMessageCondition('target', 'targetMember')}${replyTimeFilter.sql}`
     )
-    .all() as Array<{ replySenderId: number; replyTs: number; targetSenderId: number }>
+    .all(...replyTimeFilter.params) as Array<{ replySenderId: number; replyTs: number; targetSenderId: number }>
 
   const ensureReplyStats = (contactId: number) => {
     const existing = replyStats.get(contactId)
@@ -230,6 +258,19 @@ export function getGroupContactFacts(db: DatabaseAdapter, ownerMemberId: number)
       lastInteractionTs: stats.lastInteractionTs ?? coOccurrence?.lastOccurrenceTs ?? null,
     }
   })
+}
+
+function createMessageTimeFilter(
+  alias: string,
+  startTs: number | null | undefined
+): { sql: string; params: unknown[] } {
+  return typeof startTs === 'number' ? { sql: ` AND ${alias}.ts >= ?`, params: [startTs] } : { sql: '', params: [] }
+}
+
+function createReplyTimeFilter(startTs: number | null | undefined): { sql: string; params: unknown[] } {
+  return typeof startTs === 'number'
+    ? { sql: ' AND msg.ts >= ? AND target.ts >= ?', params: [startTs, startTs] }
+    : { sql: '', params: [] }
 }
 
 interface ContactMemberRow {

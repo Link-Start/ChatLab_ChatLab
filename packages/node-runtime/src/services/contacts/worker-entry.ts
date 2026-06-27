@@ -1,4 +1,5 @@
 import { parentPort, workerData } from 'node:worker_threads'
+import type { ContactsTimeRangePreset } from '@openchatlab/shared-types'
 import { DatabaseManager } from '../../database-manager'
 import type { RuntimeIdentity } from '../../data-dir-compat'
 import { initAppLogger } from '../../logging/app-logger'
@@ -11,6 +12,7 @@ interface ContactsWorkerStartupOptions {
   runtimeIdentity?: RuntimeIdentity
   nativeBinding?: string
   signature: string
+  timeRangePreset?: ContactsTimeRangePreset
 }
 
 async function main(): Promise<void> {
@@ -25,7 +27,12 @@ async function main(): Promise<void> {
   })
   const adapter = createDatabaseManagerAdapter(dbManager)
   const onProgress = (progress: ContactsComputeProgress) => parentPort?.postMessage({ type: 'progress', progress })
-  const snapshot = computeContactsSnapshot({ adapter, signature: options.signature, onProgress })
+  const snapshot = computeContactsSnapshot({
+    adapter,
+    signature: options.signature,
+    timeRangePreset: options.timeRangePreset,
+    onProgress,
+  })
   parentPort.postMessage({ type: 'success', snapshot })
 }
 

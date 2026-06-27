@@ -60,7 +60,7 @@ function createWorker(workerData: unknown, entryUrlInput?: string | URL): Worker
 }
 
 export function createContactsWorkerRunner(options: ContactsWorkerRunnerOptions): ContactsComputeRunner {
-  return ({ signature, signal, onProgress }) =>
+  return ({ signature, timeRangePreset, signal, onProgress }) =>
     new Promise<ContactsSnapshot>((resolve, reject) => {
       if (signal.aborted) {
         reject(createAbortError())
@@ -73,6 +73,7 @@ export function createContactsWorkerRunner(options: ContactsWorkerRunnerOptions)
           runtimeIdentity: options.runtimeIdentity,
           nativeBinding: options.nativeBinding,
           signature,
+          timeRangePreset,
         },
         options.workerEntryUrl
       )

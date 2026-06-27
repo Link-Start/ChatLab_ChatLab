@@ -1,11 +1,18 @@
 {
   "title": "聯絡人",
   "subtitle": "已匯入 {count} 個私聊會話",
-  "disabled": "目前私聊會話數為 {count}，聯絡人入口預設在私聊會話數超過 10 後顯示。",
+  "disabled": "目前時間範圍內有效私聊會話數為 {count}，聯絡人入口預設在有效私聊會話數超過 10 後顯示。",
   "empty": "沒有符合的聯絡人",
   "emptyValue": "暫無",
   "search": "搜尋聯絡人、ID 或別名",
   "score": "分數 {value}",
+  "timeRange": {
+    "1y": "近1年",
+    "2y": "近2年",
+    "3y": "近3年",
+    "5y": "近5年",
+    "all": "全部"
+  },
   "stats": {
     "total": "聯絡人",
     "friends": "好友",
