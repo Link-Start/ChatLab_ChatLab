@@ -12,7 +12,7 @@ import test from 'node:test'
 import { CHAT_DB_SCHEMA } from '@openchatlab/core'
 import type { DatabaseAdapter, PathProvider } from '@openchatlab/core'
 import { ChatType } from '@openchatlab/shared-types'
-import type { ContactsResponse, ContactsTimeRangePreset } from '@openchatlab/shared-types'
+import type { ContactItem, ContactsResponse, ContactsTimeRangePreset } from '@openchatlab/shared-types'
 import { openBetterSqliteDatabase } from '../../better-sqlite3-adapter'
 import type { SessionRuntimeAdapter } from '../adapters'
 import { CONTACTS_ALGORITHM_VERSION, computeContactsSnapshot, type ContactsSnapshot } from './compute'
@@ -455,6 +455,96 @@ function makeRuntimeSnapshot(
     },
   }
 }
+
+function makeContact(overrides: Partial<ContactItem> & Pick<ContactItem, 'key' | 'displayName' | 'pool'>): ContactItem {
+  return {
+    key: overrides.key,
+    platform: 'weixin',
+    platformId: overrides.key.split(':').at(-1) ?? overrides.key,
+    sessionScoped: false,
+    displayName: overrides.displayName,
+    aliases: overrides.aliases ?? [],
+    avatar: null,
+    isFriend: overrides.pool === 'friend',
+    pool: overrides.pool,
+    isLowSignal: false,
+    score: overrides.score ?? 0,
+    scoreBreakdown: overrides.scoreBreakdown ?? {},
+    sourceSessions: overrides.sourceSessions ?? [
+      {
+        id: `${overrides.key}-source`,
+        name: `${overrides.displayName} Source`,
+        platform: 'weixin',
+        type: overrides.pool === 'friend' ? ChatType.PRIVATE : ChatType.GROUP,
+      },
+    ],
+    searchText:
+      overrides.searchText ??
+      [overrides.displayName, overrides.key, ...(overrides.aliases ?? [])].join(' ').toLowerCase(),
+    lastInteractionTs: overrides.lastInteractionTs ?? null,
+  }
+}
+
+test('returns paginated lightweight contacts from a snapshot with full-snapshot search', (t) => {
+  const env = new TestEnv()
+  t.after(() => env.cleanup())
+  const service = createContactsService({
+    adapter: env.adapter,
+    systemDir: env.dir,
+    runner: () => Promise.reject(new Error('not used')),
+  })
+  const snapshot = makeRuntimeSnapshot('sig-1', 1000)
+  snapshot.contacts = [
+    makeContact({ key: 'weixin:alice', displayName: 'Alice', pool: 'friend', score: 1 }),
+    makeContact({ key: 'weixin:bob', displayName: 'Bob', pool: 'non_friend', score: 0.8, aliases: ['Builder'] }),
+    makeContact({ key: 'weixin:carol', displayName: 'Carol', pool: 'non_friend', score: 0.7 }),
+  ]
+  service.replaceSnapshotForTests!(snapshot)
+
+  const response = (service as any).getContactsPage({
+    acceptStale: true,
+    pool: 'non_friend',
+    page: 1,
+    pageSize: 1,
+    query: 'build',
+  })
+
+  assert.equal(response.cache.status, 'stale')
+  assert.deepEqual(response.pagination, { page: 1, pageSize: 1, total: 1, hasMore: false })
+  assert.deepEqual(response.stats, { friendsTotal: 1, nonFriendsTotal: 2 })
+  assert.equal(response.contacts.length, 1)
+  assert.equal(response.contacts[0].key, 'weixin:bob')
+  assert.equal('sourceSessions' in response.contacts[0], false)
+})
+
+test('returns full contact detail from the selected time range snapshot', (t) => {
+  const env = new TestEnv()
+  t.after(() => env.cleanup())
+  const service = createContactsService({
+    adapter: env.adapter,
+    systemDir: env.dir,
+    runner: () => Promise.reject(new Error('not used')),
+  })
+  const snapshot = makeRuntimeSnapshot('sig-1', 1000, '2y')
+  snapshot.contacts = [
+    makeContact({
+      key: 'weixin:alice',
+      displayName: 'Alice',
+      pool: 'friend',
+      sourceSessions: [
+        { id: 'private-a', name: 'Private A', platform: 'weixin', type: ChatType.PRIVATE, privateMessageCount: 30 },
+      ],
+    }),
+  ]
+  service.replaceSnapshotForTests!(snapshot)
+
+  const response = (service as any).getContactDetail('weixin:alice', { acceptStale: true, timeRangePreset: '2y' })
+
+  assert.equal(response.contact.key, 'weixin:alice')
+  assert.equal(response.contact.sourceSessions.length, 1)
+  assert.equal(response.cache.status, 'stale')
+  assert.equal(response.timeRange.preset, '2y')
+})
 
 test('returns missing snapshot and starts a background contacts task without synchronous compute', async (t) => {
   const env = new TestEnv()

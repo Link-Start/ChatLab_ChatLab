@@ -11,6 +11,8 @@ import type {
   ApplyOwnerProfileResult,
   SetOwnerAndApplyProfileResult,
   ContactsResponse,
+  ContactDetailResponse,
+  ContactPool,
   ContactsTimeRangePreset,
 } from '@openchatlab/shared-types'
 import type {
@@ -83,10 +85,18 @@ export interface TableSchema {
 export interface ContactsFetchOptions {
   acceptStale?: boolean
   timeRangePreset?: ContactsTimeRangePreset
+  pool?: ContactPool
+  page?: number
+  pageSize?: number
+  query?: string
 }
 
 export interface ContactsRecomputeOptions {
   timeRangePreset?: ContactsTimeRangePreset
+  pool?: ContactPool
+  page?: number
+  pageSize?: number
+  query?: string
 }
 
 // ==================== Mention Graph ====================
@@ -121,6 +131,7 @@ export interface DataAdapter {
   // ==================== 联系人 ====================
 
   getContacts(options?: ContactsFetchOptions): Promise<ContactsResponse>
+  getContactDetail(key: string, options?: ContactsFetchOptions): Promise<ContactDetailResponse>
   recomputeContacts(options?: ContactsRecomputeOptions): Promise<ContactsResponse>
 
   // ==================== 时间范围 ====================

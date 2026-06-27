@@ -39,6 +39,16 @@ function emptyContactsResponse(status: ContactsResponse['cache']['status'] = 'mi
       startTs: null,
     },
     algorithmVersion: 'contacts-v1',
+    pagination: {
+      page: 1,
+      pageSize: 100,
+      total: 0,
+      hasMore: false,
+    },
+    stats: {
+      friendsTotal: 0,
+      nonFriendsTotal: 0,
+    },
     task: {
       id: 'task-1',
       status: 'running',
@@ -54,11 +64,54 @@ function emptyContactsResponse(status: ContactsResponse['cache']['status'] = 'mi
 class FakeContactsService implements ContactsService {
   getCalls: Array<{ acceptStale?: boolean; timeRangePreset?: string }> = []
   recomputeCalls: Array<{ timeRangePreset?: string }> = []
+  pageCalls: Array<{
+    acceptStale?: boolean
+    timeRangePreset?: string
+    pool?: string
+    page?: number
+    pageSize?: number
+    query?: string
+  }> = []
+  detailCalls: Array<{ key: string; acceptStale?: boolean; timeRangePreset?: string }> = []
   closeCalls = 0
 
   getContacts(options?: { acceptStale?: boolean; timeRangePreset?: string }): ContactsResponse {
     this.getCalls.push({ acceptStale: options?.acceptStale, timeRangePreset: options?.timeRangePreset })
     return emptyContactsResponse('missing')
+  }
+
+  getContactsPage(options?: {
+    acceptStale?: boolean
+    timeRangePreset?: string
+    pool?: string
+    page?: number
+    pageSize?: number
+    query?: string
+  }): ContactsResponse {
+    this.pageCalls.push({
+      acceptStale: options?.acceptStale,
+      timeRangePreset: options?.timeRangePreset,
+      pool: options?.pool,
+      page: options?.page,
+      pageSize: options?.pageSize,
+      query: options?.query,
+    })
+    return {
+      ...emptyContactsResponse('missing'),
+      pagination: { page: options?.page ?? 1, pageSize: options?.pageSize ?? 100, total: 0, hasMore: false },
+      stats: { friendsTotal: 0, nonFriendsTotal: 0 },
+    } as any
+  }
+
+  getContactDetail(key: string, options?: { acceptStale?: boolean; timeRangePreset?: string }) {
+    this.detailCalls.push({ key, acceptStale: options?.acceptStale, timeRangePreset: options?.timeRangePreset })
+    return {
+      contact: null,
+      cache: emptyContactsResponse('missing').cache,
+      timeRange: emptyContactsResponse('missing').timeRange,
+      algorithmVersion: 'contacts-v1',
+      task: emptyContactsResponse('missing').task,
+    }
   }
 
   startRecompute(options?: { timeRangePreset?: string }): ContactsResponse {
@@ -114,7 +167,16 @@ test('GET /_web/contacts returns contacts response with task state', async (t) =
   const body = response.json<ContactsResponse>()
   assert.equal(body.cache.status, 'missing')
   assert.equal(body.task?.status, 'running')
-  assert.deepEqual(service.getCalls, [{ acceptStale: true, timeRangePreset: '1y' }])
+  assert.deepEqual(service.pageCalls, [
+    {
+      acceptStale: true,
+      timeRangePreset: '1y',
+      pool: undefined,
+      page: undefined,
+      pageSize: undefined,
+      query: undefined,
+    },
+  ])
 })
 
 test('GET /_web/contacts forwards explicit time range preset', async (t) => {
@@ -127,7 +189,58 @@ test('GET /_web/contacts forwards explicit time range preset', async (t) => {
   const response = await app.inject({ method: 'GET', url: '/_web/contacts?acceptStale=1&timeRange=2y' })
 
   assert.equal(response.statusCode, 200)
-  assert.deepEqual(service.getCalls, [{ acceptStale: true, timeRangePreset: '2y' }])
+  assert.deepEqual(service.pageCalls, [
+    {
+      acceptStale: true,
+      timeRangePreset: '2y',
+      pool: undefined,
+      page: undefined,
+      pageSize: undefined,
+      query: undefined,
+    },
+  ])
+})
+
+test('GET /_web/contacts forwards pagination, pool, search, and time range query', async (t) => {
+  const service = new FakeContactsService()
+  const app = Fastify()
+  t.after(async () => app.close())
+  registerContactsRoutes(app, createMockContext(service))
+  await app.ready()
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/_web/contacts?acceptStale=1&timeRange=2y&pool=non_friend&page=2&pageSize=50&q=Alice',
+  })
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(service.pageCalls, [
+    {
+      acceptStale: true,
+      timeRangePreset: '2y',
+      pool: 'non_friend',
+      page: 2,
+      pageSize: 50,
+      query: 'Alice',
+    },
+  ])
+  assert.deepEqual(service.getCalls, [])
+})
+
+test('GET /_web/contacts/:key/detail forwards decoded contact key and stale preference', async (t) => {
+  const service = new FakeContactsService()
+  const app = Fastify()
+  t.after(async () => app.close())
+  registerContactsRoutes(app, createMockContext(service))
+  await app.ready()
+
+  const response = await app.inject({
+    method: 'GET',
+    url: `/_web/contacts/${encodeURIComponent('weixin:alice')}/detail?acceptStale=1&timeRange=2y`,
+  })
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(service.detailCalls, [{ key: 'weixin:alice', acceptStale: true, timeRangePreset: '2y' }])
 })
 
 test('POST /_web/contacts/recompute starts or reuses background recompute without waiting for completion', async (t) => {

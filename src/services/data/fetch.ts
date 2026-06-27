@@ -10,6 +10,7 @@ import type {
   ApplyOwnerProfileResult,
   SetOwnerAndApplyProfileResult,
   ContactsResponse,
+  ContactDetailResponse,
 } from '@openchatlab/shared-types'
 import type {
   MemberActivity,
@@ -110,13 +111,29 @@ export class FetchDataAdapter implements DataAdapter {
     const params = new URLSearchParams()
     if (options?.acceptStale) params.set('acceptStale', '1')
     if (options?.timeRangePreset) params.set('timeRange', options.timeRangePreset)
+    if (options?.pool) params.set('pool', options.pool)
+    if (options?.page) params.set('page', String(options.page))
+    if (options?.pageSize) params.set('pageSize', String(options.pageSize))
+    if (options?.query) params.set('q', options.query)
     const qs = params.toString()
     return get(`/contacts${qs ? `?${qs}` : ''}`)
+  }
+
+  getContactDetail(key: string, options?: ContactsFetchOptions): Promise<ContactDetailResponse> {
+    const params = new URLSearchParams()
+    if (options?.acceptStale) params.set('acceptStale', '1')
+    if (options?.timeRangePreset) params.set('timeRange', options.timeRangePreset)
+    const qs = params.toString()
+    return get(`/contacts/${encodeURIComponent(key)}/detail${qs ? `?${qs}` : ''}`)
   }
 
   recomputeContacts(options?: ContactsRecomputeOptions): Promise<ContactsResponse> {
     const params = new URLSearchParams()
     if (options?.timeRangePreset) params.set('timeRange', options.timeRangePreset)
+    if (options?.pool) params.set('pool', options.pool)
+    if (options?.page) params.set('page', String(options.page))
+    if (options?.pageSize) params.set('pageSize', String(options.pageSize))
+    if (options?.query) params.set('q', options.query)
     const qs = params.toString()
     return post(`/contacts/recompute${qs ? `?${qs}` : ''}`, {})
   }

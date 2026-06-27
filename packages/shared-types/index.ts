@@ -295,6 +295,8 @@ export interface ContactItem {
   lastInteractionTs: number | null
 }
 
+export type ContactListItem = Omit<ContactItem, 'sourceSessions' | 'searchText'>
+
 export interface ContactsDiagnostics {
   privateSessionCount: number
   activePrivateSessionCount: number
@@ -327,14 +329,38 @@ export interface ContactsTaskState {
   lastError?: string
 }
 
-export interface ContactsResponse {
-  contacts: ContactItem[]
+export interface ContactsPagination {
+  page: number
+  pageSize: number
+  total: number
+  hasMore: boolean
+}
+
+export interface ContactsStats {
+  friendsTotal: number
+  nonFriendsTotal: number
+}
+
+export interface ContactsListResponse {
+  contacts: ContactListItem[]
   diagnostics: ContactsDiagnostics
+  cache: ContactsCacheState
+  timeRange: ContactsTimeRangeState
+  algorithmVersion: string
+  pagination: ContactsPagination
+  stats: ContactsStats
+  task?: ContactsTaskState
+}
+
+export interface ContactDetailResponse {
+  contact: ContactItem | null
   cache: ContactsCacheState
   timeRange: ContactsTimeRangeState
   algorithmVersion: string
   task?: ContactsTaskState
 }
+
+export type ContactsResponse = ContactsListResponse
 
 export interface Preferences {
   pinnedSessionIds: string[]

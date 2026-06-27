@@ -1,6 +1,10 @@
 import path from 'node:path'
 import type { PathProvider } from '@openchatlab/core'
 import type {
+  ContactItem,
+  ContactListItem,
+  ContactPool,
+  ContactDetailResponse,
   ContactsCacheState,
   ContactsResponse,
   ContactsTaskState,
@@ -21,11 +25,17 @@ import { normalizeContactsTimeRangePreset, resolveContactsTimeRange } from './ti
 import { createContactsWorkerRunner } from './worker-runner'
 
 const CONTACTS_SNAPSHOT_DIR_NAME = 'contacts'
+const DEFAULT_CONTACTS_PAGE_SIZE = 100
+const MAX_CONTACTS_PAGE_SIZE = 200
 
 export interface ContactsServiceOptions {
   forceRecompute?: boolean
   acceptStale?: boolean
   timeRangePreset?: ContactsTimeRangePreset
+  pool?: ContactPool
+  page?: number
+  pageSize?: number
+  query?: string
 }
 
 export interface ContactsRunnerOptions {
@@ -50,6 +60,8 @@ export interface ContactsServiceDeps {
 
 export interface ContactsService {
   getContacts(options?: ContactsServiceOptions): ContactsResponse
+  getContactsPage(options?: ContactsServiceOptions): ContactsResponse
+  getContactDetail(key: string, options?: ContactsServiceOptions): ContactDetailResponse
   startRecompute(options?: ContactsServiceOptions): ContactsResponse
   invalidateContactsCache(): void
   close(): Promise<void>
@@ -88,6 +100,10 @@ class DefaultContactsService implements ContactsService {
   }
 
   getContacts(options: ContactsServiceOptions = {}): ContactsResponse {
+    return this.getContactsPage(options)
+  }
+
+  getContactsPage(options: ContactsServiceOptions = {}): ContactsResponse {
     const timeRangePreset = normalizeContactsTimeRangePreset(options.timeRangePreset)
     const signature = buildContactsSignature(this.deps.adapter, timeRangePreset)
     const cacheStatus = this.getCacheStatus(signature, timeRangePreset)
@@ -95,11 +111,30 @@ class DefaultContactsService implements ContactsService {
     return this.toResponse(signature, { ...options, timeRangePreset })
   }
 
+  getContactDetail(key: string, options: ContactsServiceOptions = {}): ContactDetailResponse {
+    const timeRangePreset = normalizeContactsTimeRangePreset(options.timeRangePreset)
+    const signature = buildContactsSignature(this.deps.adapter, timeRangePreset)
+    const cacheStatus = this.getCacheStatus(signature, timeRangePreset)
+    if (this.shouldStartTaskFromRead(options, cacheStatus)) this.ensureTaskStarted(signature, timeRangePreset)
+    const snapshot = this.getSnapshot(timeRangePreset)
+    const status = this.getCacheStatus(signature, timeRangePreset)
+    const includeSnapshot = status === 'fresh' || (status === 'stale' && options.acceptStale === true)
+    return {
+      contact: includeSnapshot ? (snapshot?.contacts.find((contact) => contact.key === key) ?? null) : null,
+      algorithmVersion: includeSnapshot
+        ? (snapshot?.algorithmVersion ?? CONTACTS_ALGORITHM_VERSION)
+        : CONTACTS_ALGORITHM_VERSION,
+      timeRange: snapshot?.timeRange ?? resolveContactsTimeRange(timeRangePreset, null),
+      cache: this.toCacheState(status, snapshot),
+      task: this.task,
+    }
+  }
+
   startRecompute(options: ContactsServiceOptions = {}): ContactsResponse {
     const timeRangePreset = normalizeContactsTimeRangePreset(options.timeRangePreset)
     const signature = buildContactsSignature(this.deps.adapter, timeRangePreset)
     this.ensureTaskStarted(signature, timeRangePreset)
-    return this.toResponse(signature, { acceptStale: true, timeRangePreset })
+    return this.toResponse(signature, { ...options, acceptStale: true, timeRangePreset })
   }
 
   invalidateContactsCache(): void {
@@ -227,8 +262,20 @@ class DefaultContactsService implements ContactsService {
     const snapshot = this.getSnapshot(timeRangePreset)
     const status = this.getCacheStatus(signature, timeRangePreset)
     const includeSnapshot = status === 'fresh' || (status === 'stale' && options.acceptStale === true)
+    const allContacts = includeSnapshot ? (snapshot?.contacts ?? []) : []
+    const stats = buildContactsStats(allContacts)
+    const page = normalizePositiveInt(options.page, 1)
+    const pageSize = normalizePageSize(options.pageSize)
+    const query = options.query?.trim().toLowerCase() ?? ''
+    const filteredContacts = allContacts.filter((contact) => {
+      if (options.pool && contact.pool !== options.pool) return false
+      if (query && !contact.searchText.includes(query)) return false
+      return true
+    })
+    const offset = (page - 1) * pageSize
+    const pageContacts = filteredContacts.slice(offset, offset + pageSize).map(toContactListItem)
     return {
-      contacts: includeSnapshot ? (snapshot?.contacts ?? []) : [],
+      contacts: pageContacts,
       diagnostics: includeSnapshot
         ? (snapshot?.diagnostics ?? createEmptyContactsDiagnostics())
         : createEmptyContactsDiagnostics(),
@@ -236,13 +283,24 @@ class DefaultContactsService implements ContactsService {
         ? (snapshot?.algorithmVersion ?? CONTACTS_ALGORITHM_VERSION)
         : CONTACTS_ALGORITHM_VERSION,
       timeRange: snapshot?.timeRange ?? resolveContactsTimeRange(timeRangePreset, null),
-      cache: {
-        status,
-        computedAt: snapshot?.computedAt ?? null,
-        signature: snapshot?.signature,
-        staleReason: status === 'stale' ? 'signature_changed' : undefined,
+      cache: this.toCacheState(status, snapshot),
+      pagination: {
+        page,
+        pageSize,
+        total: filteredContacts.length,
+        hasMore: offset + pageContacts.length < filteredContacts.length,
       },
+      stats,
       task: this.task,
+    }
+  }
+
+  private toCacheState(status: ContactsCacheState['status'], snapshot: ContactsSnapshot | null): ContactsCacheState {
+    return {
+      status,
+      computedAt: snapshot?.computedAt ?? null,
+      signature: snapshot?.signature,
+      staleReason: status === 'stale' ? 'signature_changed' : undefined,
     }
   }
 
@@ -259,6 +317,30 @@ class DefaultContactsService implements ContactsService {
   private now(): number {
     return this.deps.now?.() ?? Date.now()
   }
+}
+
+function buildContactsStats(contacts: ContactItem[]): { friendsTotal: number; nonFriendsTotal: number } {
+  let friendsTotal = 0
+  let nonFriendsTotal = 0
+  for (const contact of contacts) {
+    if (contact.pool === 'friend') friendsTotal++
+    else if (contact.pool === 'non_friend') nonFriendsTotal++
+  }
+  return { friendsTotal, nonFriendsTotal }
+}
+
+function toContactListItem(contact: ContactItem): ContactListItem {
+  const { sourceSessions: _sourceSessions, searchText: _searchText, ...item } = contact
+  return item
+}
+
+function normalizePositiveInt(value: number | undefined, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback
+  return Math.max(1, Math.trunc(value!))
+}
+
+function normalizePageSize(value: number | undefined): number {
+  return Math.min(MAX_CONTACTS_PAGE_SIZE, normalizePositiveInt(value, DEFAULT_CONTACTS_PAGE_SIZE))
 }
 
 function createIdleTaskState(): ContactsTaskState {
