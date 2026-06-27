@@ -230,6 +230,8 @@ export interface SetOwnerAndApplyProfileResult {
 
 export type ContactPool = 'friend' | 'non_friend'
 
+export type ContactFriendSource = 'private' | 'manual'
+
 export type ContactsCacheStatus = 'fresh' | 'stale' | 'missing'
 
 export type ContactsTaskStatus = 'idle' | 'running' | 'succeeded' | 'failed' | 'superseded'
@@ -287,6 +289,7 @@ export interface ContactItem {
   avatar: string | null
   isFriend: boolean
   pool: ContactPool
+  friendSource?: ContactFriendSource
   score: number
   scoreBreakdown: ContactScoreBreakdown
   sourceSessions: ContactSourceSession[]

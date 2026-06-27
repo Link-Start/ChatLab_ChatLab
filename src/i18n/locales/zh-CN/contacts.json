@@ -29,6 +29,7 @@
   },
   "pool": {
     "friend": "好友",
+    "manualFriend": "好友 · 手动标记",
     "nonFriend": "群友"
   },
   "group": {
@@ -42,6 +43,8 @@
   },
   "actions": {
     "recompute": "重新计算",
+    "markFriend": "标记为好友",
+    "unmarkFriend": "取消标记",
     "clearSearch": "清空搜索",
     "clearSelection": "取消选中",
     "viewDetail": "查看 {name} 的详情"
@@ -87,6 +90,10 @@
   "toast": {
     "recomputed": "联系人已重新计算",
     "recomputeStarted": "已开始后台计算联系人",
-    "recomputeFailed": "重新计算失败"
+    "recomputeFailed": "重新计算失败",
+    "markFriendSucceeded": "已标记为好友",
+    "markFriendFailed": "标记好友失败",
+    "unmarkFriendSucceeded": "已取消标记",
+    "unmarkFriendFailed": "取消标记失败"
   }
 }

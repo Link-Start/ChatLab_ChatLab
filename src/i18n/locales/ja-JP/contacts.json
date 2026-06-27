@@ -29,6 +29,7 @@
   },
   "pool": {
     "friend": "友人",
+    "manualFriend": "友人 · 手動",
     "nonFriend": "グループ仲間"
   },
   "group": {
@@ -42,6 +43,8 @@
   },
   "actions": {
     "recompute": "再計算",
+    "markFriend": "友人としてマーク",
+    "unmarkFriend": "マークを解除",
     "clearSearch": "検索をクリア",
     "clearSelection": "選択を解除",
     "viewDetail": "{name} の詳細を表示"
@@ -87,6 +90,10 @@
   "toast": {
     "recomputed": "連絡先を再計算しました",
     "recomputeStarted": "バックグラウンドで連絡先の計算を開始しました",
-    "recomputeFailed": "再計算に失敗しました"
+    "recomputeFailed": "再計算に失敗しました",
+    "markFriendSucceeded": "友人としてマークしました",
+    "markFriendFailed": "友人マークに失敗しました",
+    "unmarkFriendSucceeded": "マークを解除しました",
+    "unmarkFriendFailed": "マーク解除に失敗しました"
   }
 }

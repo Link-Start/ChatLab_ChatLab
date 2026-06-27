@@ -7,11 +7,14 @@ const props = defineProps<{
   selectedKey: string | null
   contact: ContactItem | null
   isLoading: boolean
+  isFriendActionLoading: boolean
 }>()
 
 const emit = defineEmits<{
   clear: []
   openSource: [source: ContactItem['sourceSessions'][number]]
+  markFriend: []
+  unmarkFriend: []
 }>()
 
 const { t } = useI18n()
@@ -22,6 +25,10 @@ const visibleAliases = computed(() => {
   const hidden = new Set([contact.displayName.trim().toLowerCase(), contact.platformId.trim().toLowerCase()])
   return contact.aliases.filter((alias) => !hidden.has(alias.trim().toLowerCase()))
 })
+
+const canMarkFriend = computed(() => props.contact?.pool === 'non_friend')
+const canUnmarkFriend = computed(() => props.contact?.friendSource === 'manual')
+const showFriendActions = computed(() => canMarkFriend.value || canUnmarkFriend.value)
 
 function avatarText(contact: ContactItem): string {
   return contact.displayName.trim().slice(0, 1).toUpperCase() || '?'
@@ -63,6 +70,8 @@ function avatarText(contact: ContactItem): string {
                 v-if="contact.avatar"
                 :src="contact.avatar"
                 :alt="contact.displayName"
+                loading="lazy"
+                decoding="async"
                 class="h-16 w-16 rounded-2xl object-cover shadow-sm ring-2 ring-white dark:ring-gray-900"
               />
               <div
@@ -87,6 +96,30 @@ function avatarText(contact: ContactItem): string {
                 >
                   {{ alias }}
                 </span>
+              </div>
+              <div v-if="showFriendActions" class="mt-3 flex flex-wrap items-center gap-2">
+                <UButton
+                  v-if="canMarkFriend"
+                  icon="i-lucide-user-plus"
+                  color="primary"
+                  variant="soft"
+                  size="xs"
+                  :loading="isFriendActionLoading"
+                  @click="emit('markFriend')"
+                >
+                  {{ t('contacts.actions.markFriend') }}
+                </UButton>
+                <UButton
+                  v-else-if="canUnmarkFriend"
+                  icon="i-lucide-user-minus"
+                  color="neutral"
+                  variant="soft"
+                  size="xs"
+                  :loading="isFriendActionLoading"
+                  @click="emit('unmarkFriend')"
+                >
+                  {{ t('contacts.actions.unmarkFriend') }}
+                </UButton>
               </div>
             </div>
           </div>

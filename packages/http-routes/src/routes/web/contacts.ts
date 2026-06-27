@@ -52,6 +52,24 @@ export function registerContactsRoutes(server: FastifyInstance, ctx: HttpRouteCo
       timeRangePreset: parseContactsTimeRangePreset(request.query.timeRange),
     })
   })
+
+  server.put<{ Params: { key: string }; Querystring: ContactsQuery }>(
+    '/_web/contacts/:key/mark-friend',
+    async (request) => {
+      return service.markContactAsFriend(request.params.key, {
+        timeRangePreset: parseContactsTimeRangePreset(request.query.timeRange),
+      })
+    }
+  )
+
+  server.delete<{ Params: { key: string }; Querystring: ContactsQuery }>(
+    '/_web/contacts/:key/mark-friend',
+    async (request) => {
+      return service.unmarkContactAsFriend(request.params.key, {
+        timeRangePreset: parseContactsTimeRangePreset(request.query.timeRange),
+      })
+    }
+  )
 }
 
 function isTruthy(value: string | undefined): boolean {

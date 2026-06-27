@@ -72,6 +72,8 @@ class FakeContactsService implements ContactsService {
     query?: string
   }> = []
   detailCalls: Array<{ key: string; acceptStale?: boolean; timeRangePreset?: string }> = []
+  markFriendCalls: Array<{ key: string; timeRangePreset?: string }> = []
+  unmarkFriendCalls: Array<{ key: string; timeRangePreset?: string }> = []
   closeCalls = 0
 
   getContacts(options?: { acceptStale?: boolean; timeRangePreset?: string }): ContactsResponse {
@@ -116,6 +118,16 @@ class FakeContactsService implements ContactsService {
   startRecompute(options?: { timeRangePreset?: string }): ContactsResponse {
     this.recomputeCalls.push({ timeRangePreset: options?.timeRangePreset })
     return emptyContactsResponse('stale')
+  }
+
+  markContactAsFriend(key: string, options?: { timeRangePreset?: string }): { success: boolean } {
+    this.markFriendCalls.push({ key, timeRangePreset: options?.timeRangePreset })
+    return { success: true }
+  }
+
+  unmarkContactAsFriend(key: string, options?: { timeRangePreset?: string }): { success: boolean } {
+    this.unmarkFriendCalls.push({ key, timeRangePreset: options?.timeRangePreset })
+    return { success: true }
   }
 
   invalidateContactsCache(): void {
@@ -276,6 +288,31 @@ test('override routes are not registered', async (t) => {
     url: '/_web/contacts/weixin:alice/override',
   })
   assert.equal(deleted.statusCode, 404)
+})
+
+test('PUT and DELETE /_web/contacts/:key/mark-friend forward decoded key and time range', async (t) => {
+  const service = new FakeContactsService()
+  const app = Fastify()
+  t.after(async () => app.close())
+  registerContactsRoutes(app, createMockContext(service))
+  await app.ready()
+
+  const putResponse = await app.inject({
+    method: 'PUT',
+    url: `/_web/contacts/${encodeURIComponent('weixin:alice')}/mark-friend?timeRange=2y`,
+  })
+  assert.equal(putResponse.statusCode, 200)
+  assert.deepEqual(putResponse.json(), { success: true })
+
+  const deleteResponse = await app.inject({
+    method: 'DELETE',
+    url: `/_web/contacts/${encodeURIComponent('weixin:alice')}/mark-friend?timeRange=2y`,
+  })
+  assert.equal(deleteResponse.statusCode, 200)
+  assert.deepEqual(deleteResponse.json(), { success: true })
+
+  assert.deepEqual(service.markFriendCalls, [{ key: 'weixin:alice', timeRangePreset: '2y' }])
+  assert.deepEqual(service.unmarkFriendCalls, [{ key: 'weixin:alice', timeRangePreset: '2y' }])
 })
 
 test('closes contacts service when Fastify app closes', async () => {

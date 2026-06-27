@@ -540,6 +540,78 @@ test('returns paginated lightweight contacts from a snapshot with full-snapshot 
   assert.equal('sourceSessions' in response.contacts[0], false)
 })
 
+test('applies manual friend overrides to paginated lists, stats, search, and detail without changing the snapshot', (t) => {
+  const env = new TestEnv()
+  t.after(() => env.cleanup())
+  const service = createContactsService({
+    adapter: env.adapter,
+    systemDir: env.dir,
+    runner: () => Promise.reject(new Error('not used')),
+  })
+  const snapshot = makeRuntimeSnapshot('sig-1', 1000)
+  snapshot.contacts = [
+    makeContact({ key: 'weixin:bob', displayName: 'Bob', pool: 'non_friend', score: 1, aliases: ['Builder'] }),
+    makeContact({ key: 'weixin:alice', displayName: 'Alice', pool: 'friend', score: 0.4 }),
+    makeContact({ key: 'weixin:carol', displayName: 'Carol', pool: 'non_friend', score: 0.3 }),
+  ]
+  service.replaceSnapshotForTests!(snapshot)
+
+  assert.deepEqual((service as any).markContactAsFriend('weixin:bob', { acceptStale: true }), { success: true })
+
+  const friends = service.getContactsPage({ acceptStale: true, pool: 'friend', page: 1, pageSize: 10 })
+  assert.deepEqual(
+    friends.contacts.map((contact) => contact.key),
+    ['weixin:alice', 'weixin:bob']
+  )
+  assert.deepEqual(friends.stats, { friendsTotal: 2, nonFriendsTotal: 1 })
+  assert.equal((friends.contacts[0] as any).friendSource, 'private')
+  assert.equal((friends.contacts[1] as any).friendSource, 'manual')
+  assert.equal(friends.contacts[1].pool, 'friend')
+  assert.equal(friends.contacts[1].isFriend, true)
+
+  const groupmates = service.getContactsPage({ acceptStale: true, pool: 'non_friend', page: 1, pageSize: 10 })
+  assert.deepEqual(
+    groupmates.contacts.map((contact) => contact.key),
+    ['weixin:carol']
+  )
+
+  const search = service.getContactsPage({
+    acceptStale: true,
+    pool: 'friend',
+    page: 1,
+    pageSize: 10,
+    query: 'build',
+  })
+  assert.deepEqual(
+    search.contacts.map((contact) => contact.key),
+    ['weixin:bob']
+  )
+
+  const detail = service.getContactDetail('weixin:bob', { acceptStale: true })
+  assert.equal(detail.contact?.pool, 'friend')
+  assert.equal(detail.contact?.isFriend, true)
+  assert.equal((detail.contact as any).friendSource, 'manual')
+  assert.equal(snapshot.contacts[0]?.pool, 'non_friend')
+
+  assert.deepEqual((service as any).unmarkContactAsFriend('weixin:bob'), { success: true })
+  const friendsAfterUnmark = service.getContactsPage({ acceptStale: true, pool: 'friend', page: 1, pageSize: 10 })
+  assert.deepEqual(
+    friendsAfterUnmark.contacts.map((contact) => contact.key),
+    ['weixin:alice']
+  )
+  const groupmatesAfterUnmark = service.getContactsPage({
+    acceptStale: true,
+    pool: 'non_friend',
+    page: 1,
+    pageSize: 10,
+  })
+  assert.deepEqual(
+    groupmatesAfterUnmark.contacts.map((contact) => contact.key),
+    ['weixin:bob', 'weixin:carol']
+  )
+  assert.equal((groupmatesAfterUnmark.contacts[0] as any).friendSource, undefined)
+})
+
 test('returns full contact detail from the selected time range snapshot', (t) => {
   const env = new TestEnv()
   t.after(() => env.cleanup())

@@ -44,6 +44,7 @@ const activeContactSection = ref<ContactPoolTab>('friend')
 const selectedKey = ref<string | null>(null)
 const selectedContact = ref<ContactItem | null>(null)
 const isDetailLoading = ref(false)
+const isFriendActionSaving = ref(false)
 const pollTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const searchTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const tabNavigationTimer = ref<ReturnType<typeof setTimeout> | null>(null)
@@ -452,9 +453,13 @@ function stopContactsPolling() {
 
 async function selectContact(contact: ContactListItem) {
   selectedKey.value = contact.key
-  const cacheKey = `${timeRangePreset.value}:${contact.key}`
+  await loadSelectedContactDetail(contact.key)
+}
+
+async function loadSelectedContactDetail(key: string, options?: { skipCache?: boolean }) {
+  const cacheKey = `${timeRangePreset.value}:${key}`
   const cached = detailCache.value[cacheKey]
-  if (cached) {
+  if (cached && !options?.skipCache) {
     selectedContact.value = cached
     return
   }
@@ -462,11 +467,11 @@ async function selectContact(contact: ContactListItem) {
   selectedContact.value = null
   isDetailLoading.value = true
   try {
-    const detail = await dataService.getContactDetail(contact.key, {
+    const detail = await dataService.getContactDetail(key, {
       acceptStale: true,
       timeRangePreset: timeRangePreset.value,
     })
-    if (selectedKey.value !== contact.key) return
+    if (selectedKey.value !== key) return
     selectedContact.value = detail.contact
     if (detail.contact) {
       detailCache.value = {
@@ -477,8 +482,48 @@ async function selectContact(contact: ContactListItem) {
   } catch (err) {
     toast.fail(t('contacts.toast.recomputeFailed'), { description: String(err) })
   } finally {
-    if (selectedKey.value === contact.key) isDetailLoading.value = false
+    if (selectedKey.value === key) isDetailLoading.value = false
   }
+}
+
+async function markSelectedContactAsFriend() {
+  const key = selectedContact.value?.key
+  if (!key || isFriendActionSaving.value) return
+  isFriendActionSaving.value = true
+  try {
+    await dataService.markContactAsFriend(key, { timeRangePreset: timeRangePreset.value })
+    toast.success(t('contacts.toast.markFriendSucceeded'))
+    await refreshContactsAfterFriendAction(key)
+  } catch (err) {
+    toast.fail(t('contacts.toast.markFriendFailed'), { description: String(err) })
+  } finally {
+    isFriendActionSaving.value = false
+  }
+}
+
+async function unmarkSelectedContactAsFriend() {
+  const key = selectedContact.value?.key
+  if (!key || isFriendActionSaving.value) return
+  isFriendActionSaving.value = true
+  try {
+    await dataService.unmarkContactAsFriend(key, { timeRangePreset: timeRangePreset.value })
+    toast.success(t('contacts.toast.unmarkFriendSucceeded'))
+    await refreshContactsAfterFriendAction(key)
+  } catch (err) {
+    toast.fail(t('contacts.toast.unmarkFriendFailed'), { description: String(err) })
+  } finally {
+    isFriendActionSaving.value = false
+  }
+}
+
+async function refreshContactsAfterFriendAction(key: string) {
+  resetContactsState()
+  await Promise.all([
+    loadFirstPage('friend', { acceptStale: true }),
+    loadFirstPage('non_friend', { acceptStale: true }),
+  ])
+  selectedKey.value = key
+  await loadSelectedContactDetail(key, { skipCache: true })
 }
 
 function clearSelectedContact() {
@@ -488,11 +533,15 @@ function clearSelectedContact() {
 }
 
 function contactBadgeLabel(contact: ContactListItem): string {
+  if (contact.friendSource === 'manual') return t('contacts.pool.manualFriend')
   if (contact.pool === 'friend') return t('contacts.pool.friend')
   return t('contacts.pool.nonFriend')
 }
 
 function contactBadgeClasses(contact: ContactListItem): string {
+  if (contact.friendSource === 'manual') {
+    return 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400 border border-indigo-100/50 dark:border-indigo-500/20'
+  }
   if (contact.pool === 'friend') {
     return 'bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400 border border-sky-100/50 dark:border-sky-500/20'
   }
@@ -527,6 +576,11 @@ function avatarText(contact: ContactListItem | ContactItem): string {
 
 function formatScore(score: number): string {
   return Math.round(score * 100).toString()
+}
+
+function formatContactScore(contact: ContactListItem): string {
+  if (contact.friendSource === 'manual') return '-'
+  return formatScore(contact.score)
 }
 
 function formatCount(value: number | undefined): string {
@@ -813,6 +867,8 @@ function getGroupSectionStart(): number {
                                 v-if="contactRowAt(virtualRow.index).contact.avatar"
                                 :src="contactRowAt(virtualRow.index).contact.avatar ?? ''"
                                 :alt="contactRowAt(virtualRow.index).contact.displayName"
+                                loading="lazy"
+                                decoding="async"
                                 class="h-10 w-10 object-cover transition-transform duration-300 group-hover:scale-105"
                               />
                               <div
@@ -886,7 +942,7 @@ function getGroupSectionStart(): number {
                                 : 'bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-400'
                             "
                           >
-                            {{ formatScore(contactRowAt(virtualRow.index).contact.score) }}
+                            {{ formatContactScore(contactRowAt(virtualRow.index).contact) }}
                           </span>
                         </button>
 
@@ -911,8 +967,11 @@ function getGroupSectionStart(): number {
           :selected-key="selectedKey"
           :contact="selectedContact"
           :is-loading="isDetailLoading"
+          :is-friend-action-loading="isFriendActionSaving"
           @clear="clearSelectedContact"
           @open-source="openSourceSession"
+          @mark-friend="markSelectedContactAsFriend"
+          @unmark-friend="unmarkSelectedContactAsFriend"
         />
       </div>
     </div>
@@ -929,7 +988,7 @@ function getGroupSectionStart(): number {
 
 .contact-table-grid--friends,
 .contact-table-grid--group-contacts {
-  grid-template-columns: minmax(180px, 1.5fr) 88px 86px 86px 86px 104px 54px;
+  grid-template-columns: minmax(180px, 1.5fr) 118px 86px 86px 86px 104px 54px;
 }
 
 .contact-table-grid > * {

@@ -99,6 +99,10 @@ export interface ContactsRecomputeOptions {
   query?: string
 }
 
+export interface ContactFriendMarkOptions {
+  timeRangePreset?: ContactsTimeRangePreset
+}
+
 // ==================== Mention Graph ====================
 
 export interface MentionGraphData {
@@ -133,6 +137,8 @@ export interface DataAdapter {
   getContacts(options?: ContactsFetchOptions): Promise<ContactsResponse>
   getContactDetail(key: string, options?: ContactsFetchOptions): Promise<ContactDetailResponse>
   recomputeContacts(options?: ContactsRecomputeOptions): Promise<ContactsResponse>
+  markContactAsFriend(key: string, options?: ContactFriendMarkOptions): Promise<boolean>
+  unmarkContactAsFriend(key: string, options?: ContactFriendMarkOptions): Promise<boolean>
 
   // ==================== 时间范围 ====================
 

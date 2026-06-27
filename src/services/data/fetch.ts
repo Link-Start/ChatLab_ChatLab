@@ -50,7 +50,7 @@ import type {
   MentionGraphData,
   MessageLengthDistribution,
 } from './types'
-import { get, post, del, patch, analyticsGet } from '../utils/http'
+import { get, post, del, put, patch, analyticsGet } from '../utils/http'
 
 function buildFilterParams(filter?: TimeFilter): string {
   if (!filter) return ''
@@ -136,6 +136,26 @@ export class FetchDataAdapter implements DataAdapter {
     if (options?.query) params.set('q', options.query)
     const qs = params.toString()
     return post(`/contacts/recompute${qs ? `?${qs}` : ''}`, {})
+  }
+
+  async markContactAsFriend(key: string, options?: ContactsFetchOptions): Promise<boolean> {
+    const params = new URLSearchParams()
+    if (options?.timeRangePreset) params.set('timeRange', options.timeRangePreset)
+    const qs = params.toString()
+    const result = await put<{ success: boolean }>(
+      `/contacts/${encodeURIComponent(key)}/mark-friend${qs ? `?${qs}` : ''}`
+    )
+    return result.success
+  }
+
+  async unmarkContactAsFriend(key: string, options?: ContactsFetchOptions): Promise<boolean> {
+    const params = new URLSearchParams()
+    if (options?.timeRangePreset) params.set('timeRange', options.timeRangePreset)
+    const qs = params.toString()
+    const result = await del<{ success: boolean }>(
+      `/contacts/${encodeURIComponent(key)}/mark-friend${qs ? `?${qs}` : ''}`
+    )
+    return result.success
   }
 
   // ==================== 时间范围 ====================

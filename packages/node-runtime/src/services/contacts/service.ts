@@ -20,6 +20,12 @@ import {
   type ContactsComputeProgress,
   type ContactsSnapshot,
 } from './compute'
+import {
+  readContactOverrides,
+  writeContactOverrides,
+  type ContactOverrideMutationResult,
+  type ContactOverridesFile,
+} from './overrides'
 import { buildContactsSignature } from './signature'
 import { cleanupContactsSnapshotTempFiles, readContactsSnapshot, writeContactsSnapshot } from './snapshot'
 import { normalizeContactsTimeRangePreset, resolveContactsTimeRange } from './time-range'
@@ -63,6 +69,8 @@ export interface ContactsService {
   getContacts(options?: ContactsServiceOptions): ContactsResponse
   getContactsPage(options?: ContactsServiceOptions): ContactsResponse
   getContactDetail(key: string, options?: ContactsServiceOptions): ContactDetailResponse
+  markContactAsFriend(key: string, options?: ContactsServiceOptions): ContactOverrideMutationResult
+  unmarkContactAsFriend(key: string, options?: ContactsServiceOptions): ContactOverrideMutationResult
   startRecompute(options?: ContactsServiceOptions): ContactsResponse
   invalidateContactsCache(): void
   close(): Promise<void>
@@ -120,7 +128,8 @@ class DefaultContactsService implements ContactsService {
     const snapshot = this.getSnapshot(timeRangePreset)
     const status = this.getCacheStatus(signature, timeRangePreset)
     const includeSnapshot = status === 'fresh' || (status === 'stale' && options.acceptStale === true)
-    const contact = includeSnapshot ? (snapshot?.contacts.find((item) => item.key === key) ?? null) : null
+    const contacts = includeSnapshot ? this.getContactsWithOverrides(snapshot?.contacts ?? []) : []
+    const contact = contacts.find((item) => item.key === key) ?? null
     return {
       contact: contact ? sanitizeContactItem(contact) : null,
       algorithmVersion: includeSnapshot
@@ -130,6 +139,33 @@ class DefaultContactsService implements ContactsService {
       cache: this.toCacheState(status, snapshot),
       task: this.task,
     }
+  }
+
+  markContactAsFriend(key: string, options: ContactsServiceOptions = {}): ContactOverrideMutationResult {
+    const timeRangePreset = normalizeContactsTimeRangePreset(options.timeRangePreset)
+    const snapshot = this.getSnapshot(timeRangePreset)
+    const contact = snapshot?.contacts.find((item) => item.key === key)
+    if (!contact) throw createContactNotFoundError(key)
+    if (contact.pool === 'friend') return { success: true }
+
+    const now = this.now()
+    const overrides = this.readOverrides()
+    const existing = overrides.manualFriends[key]
+    overrides.manualFriends[key] = {
+      key,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    }
+    this.writeOverrides(overrides, 'mark contact as friend')
+    return { success: true }
+  }
+
+  unmarkContactAsFriend(key: string): ContactOverrideMutationResult {
+    const overrides = this.readOverrides()
+    if (!overrides.manualFriends[key]) return { success: true }
+    delete overrides.manualFriends[key]
+    this.writeOverrides(overrides, 'unmark contact as friend')
+    return { success: true }
   }
 
   startRecompute(options: ContactsServiceOptions = {}): ContactsResponse {
@@ -264,16 +300,18 @@ class DefaultContactsService implements ContactsService {
     const snapshot = this.getSnapshot(timeRangePreset)
     const status = this.getCacheStatus(signature, timeRangePreset)
     const includeSnapshot = status === 'fresh' || (status === 'stale' && options.acceptStale === true)
-    const allContacts = includeSnapshot ? (snapshot?.contacts ?? []) : []
+    const allContacts = includeSnapshot ? this.getContactsWithOverrides(snapshot?.contacts ?? []) : []
     const stats = buildContactsStats(allContacts)
     const page = normalizePositiveInt(options.page, 1)
     const pageSize = normalizePageSize(options.pageSize)
     const query = options.query?.trim().toLowerCase() ?? ''
-    const filteredContacts = allContacts.filter((contact) => {
-      if (options.pool && contact.pool !== options.pool) return false
-      if (query && !contact.searchText.includes(query)) return false
-      return true
-    })
+    const filteredContacts = allContacts
+      .filter((contact) => {
+        if (options.pool && contact.pool !== options.pool) return false
+        if (query && !contact.searchText.includes(query)) return false
+        return true
+      })
+      .sort((a, b) => compareContactsForResponse(a, b, options.pool))
     const offset = (page - 1) * pageSize
     const pageContacts = filteredContacts.slice(offset, offset + pageSize).map(toContactListItem)
     return {
@@ -319,6 +357,65 @@ class DefaultContactsService implements ContactsService {
   private now(): number {
     return this.deps.now?.() ?? Date.now()
   }
+
+  private getContactsWithOverrides(contacts: ContactItem[]): ContactItem[] {
+    return applyContactOverrides(contacts, this.readOverrides())
+  }
+
+  private readOverrides(): ContactOverridesFile {
+    return readContactOverrides(this.snapshotDir)
+  }
+
+  private writeOverrides(overrides: ContactOverridesFile, action: string): void {
+    try {
+      writeContactOverrides(this.snapshotDir, overrides)
+      appLogger.info('contacts', `contact override saved: ${action}`, {
+        manualFriendCount: Object.keys(overrides.manualFriends).length,
+      })
+    } catch (error) {
+      appLogger.error('contacts', `failed to save contact override: ${action}`, error)
+      throw error
+    }
+  }
+}
+
+function applyContactOverrides(contacts: ContactItem[], overrides: ContactOverridesFile): ContactItem[] {
+  return contacts.map((contact) => {
+    if (contact.pool === 'friend') {
+      return {
+        ...contact,
+        isFriend: true,
+        pool: 'friend',
+        friendSource: 'private',
+      }
+    }
+    if (overrides.manualFriends[contact.key]) {
+      return {
+        ...contact,
+        isFriend: true,
+        pool: 'friend',
+        friendSource: 'manual',
+      }
+    }
+    const { friendSource: _friendSource, ...rest } = contact
+    return {
+      ...rest,
+      isFriend: false,
+      pool: 'non_friend',
+    }
+  })
+}
+
+function compareContactsForResponse(a: ContactItem, b: ContactItem, pool: ContactPool | undefined): number {
+  if (pool === 'friend') {
+    const rankDiff = friendSortRank(a) - friendSortRank(b)
+    if (rankDiff !== 0) return rankDiff
+  }
+  return b.score - a.score || a.displayName.localeCompare(b.displayName)
+}
+
+function friendSortRank(contact: ContactItem): number {
+  return contact.friendSource === 'manual' ? 1 : 0
 }
 
 function buildContactsStats(contacts: ContactItem[]): { friendsTotal: number; nonFriendsTotal: number } {
@@ -355,7 +452,15 @@ function sanitizeContactItem(contact: ContactItem): ContactItem {
     lastInteractionTs: contact.lastInteractionTs,
   }
   if (contact.sessionId) item.sessionId = contact.sessionId
+  if (contact.friendSource) item.friendSource = contact.friendSource
   return item
+}
+
+function createContactNotFoundError(key: string): Error {
+  return Object.assign(new Error(`Contact not found: ${key}`), {
+    statusCode: 404,
+    code: 'CONTACT_NOT_FOUND',
+  })
 }
 
 function sanitizeContactsDiagnostics(diagnostics: ContactsDiagnostics): ContactsDiagnostics {

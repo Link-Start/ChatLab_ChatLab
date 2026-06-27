@@ -294,7 +294,7 @@ function toContactItem(
   const aliases = [...acc.aliases].filter((alias) => alias !== acc.displayName)
   const searchText = [acc.displayName, acc.platformId, ...aliases].join(' ').toLowerCase()
 
-  return {
+  const item: ContactItem = {
     key: acc.key,
     platform: acc.platform,
     platformId: acc.platformId,
@@ -321,6 +321,8 @@ function toContactItem(
     searchText,
     lastInteractionTs: acc.lastInteractionTs,
   }
+  if (pool === 'friend') item.friendSource = 'private'
+  return item
 }
 
 export function createEmptyContactsDiagnostics(): ContactsDiagnostics {
