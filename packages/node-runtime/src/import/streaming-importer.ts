@@ -205,7 +205,13 @@ async function streamImportSingle(
     `INSERT INTO meta (name, platform, type, imported_at, group_id, group_avatar, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?)`
   )
   const insertMember = db.prepare(
-    `INSERT OR IGNORE INTO member (platform_id, account_name, group_nickname, avatar, roles) VALUES (?, ?, ?, ?, ?)`
+    `INSERT INTO member (platform_id, account_name, group_nickname, avatar, roles)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(platform_id) DO UPDATE SET
+       account_name = COALESCE(NULLIF(excluded.account_name, ''), account_name),
+       group_nickname = COALESCE(NULLIF(excluded.group_nickname, ''), group_nickname),
+       avatar = COALESCE(NULLIF(excluded.avatar, ''), avatar),
+       roles = CASE WHEN excluded.roles != '[]' THEN excluded.roles ELSE roles END`
   )
   const getMemberId = db.prepare(`SELECT id FROM member WHERE platform_id = ?`)
   const insertMessage = db.prepare(
