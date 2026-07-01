@@ -66,7 +66,9 @@
   },
   "messageItem": {
     "viewContext": "檢視上下文",
-    "replyTo": "回覆"
+    "replyTo": "回覆",
+    "expandMessyContent": "展開完整內容",
+    "collapseMessyContent": "收起"
   },
   "sessionIndex": {
     "title": "會話索引",

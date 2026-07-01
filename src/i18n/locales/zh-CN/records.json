@@ -66,7 +66,9 @@
   },
   "messageItem": {
     "viewContext": "查看上下文",
-    "replyTo": "回复"
+    "replyTo": "回复",
+    "expandMessyContent": "展开完整内容",
+    "collapseMessyContent": "收起"
   },
   "sessionIndex": {
     "title": "会话索引",

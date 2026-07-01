@@ -182,9 +182,19 @@ watch(
 </script>
 
 <template>
-  <UDrawer v-model:open="layoutStore.showChatRecordDrawer" direction="right" :handle="false" :ui="{ content: 'z-50' }">
+  <UDrawer
+    v-model:open="layoutStore.showChatRecordDrawer"
+    direction="right"
+    :handle="false"
+    handle-only
+    :ui="{ content: 'z-50' }"
+  >
     <template #content>
-      <div class="flex h-full w-[750px] flex-col bg-white dark:bg-page-dark" style="-webkit-app-region: no-drag">
+      <div
+        data-vaul-no-drag
+        class="chat-record-drawer-content flex h-full w-[750px] flex-col bg-white dark:bg-page-dark"
+        style="-webkit-app-region: no-drag"
+      >
         <!-- 头部 -->
         <div
           class="flex items-center justify-between border-b border-gray-200 px-4 dark:border-gray-800"
@@ -238,3 +248,11 @@ watch(
     </template>
   </UDrawer>
 </template>
+
+<style scoped>
+.chat-record-drawer-content :deep(.chat-record-message-content),
+.chat-record-drawer-content :deep(.chat-record-message-content *) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+</style>

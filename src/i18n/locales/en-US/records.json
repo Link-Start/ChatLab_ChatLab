@@ -66,7 +66,9 @@
   },
   "messageItem": {
     "viewContext": "View Context",
-    "replyTo": "Reply to"
+    "replyTo": "Reply to",
+    "expandMessyContent": "Show full content",
+    "collapseMessyContent": "Collapse"
   },
   "sessionIndex": {
     "title": "Session Index",

@@ -3,9 +3,10 @@
  * 单条消息展示组件 - 气泡样式
  * 支持 Owner 消息显示在右侧（类似聊天界面）
  */
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { analyzeMessyContent } from './messy-content'
 import type { ChatRecordMessage } from './types'
 import { useSessionStore } from '@/stores/session'
 
@@ -72,6 +73,23 @@ const nameColor = computed(() => currentColor.value.name)
 
 // 气泡颜色
 const bubbleColor = 'bg-gray-100/80 dark:bg-gray-800/80'
+const showFullMessyContent = ref(false)
+
+const contentAnalysis = computed(() => analyzeMessyContent(props.message.content || ''))
+const visibleMessageContent = computed(() => {
+  const analysis = contentAnalysis.value
+  if (!analysis.shouldCollapse || showFullMessyContent.value) {
+    return analysis.normalizedContent
+  }
+  return analysis.previewLines.join('\n')
+})
+
+watch(
+  () => [props.message.id, props.message.content],
+  () => {
+    showFullMessyContent.value = false
+  }
+)
 
 // 显示名称（包含别名）
 const displayName = computed(() => {
@@ -117,13 +135,34 @@ const avatarLetter = computed(() => {
 const HIGHLIGHT_MARK_CLASS =
   'bg-transparent text-inherit underline decoration-primary-500/80 underline-offset-4 dark:decoration-primary-400/80'
 
+function escapeHtml(content: string): string {
+  return content.replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case '&':
+        return '&amp;'
+      case '<':
+        return '&lt;'
+      case '>':
+        return '&gt;'
+      case '"':
+        return '&quot;'
+      case "'":
+        return '&#39;'
+      default:
+        return char
+    }
+  })
+}
+
 // 高亮关键词
 function highlightContent(content: string): string {
-  if (!props.highlightKeywords?.length || !content) return content
+  const escapedContent = escapeHtml(content)
+  const escapedKeywords = props.highlightKeywords?.map((keyword) => escapeHtml(keyword)).filter(Boolean) ?? []
+  if (!escapedKeywords.length || !escapedContent) return escapedContent
 
-  const pattern = props.highlightKeywords.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  const pattern = escapedKeywords.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
   const regex = new RegExp(`(${pattern})`, 'gi')
-  return content.replace(regex, `<mark class="${HIGHLIGHT_MARK_CLASS}">$1</mark>`)
+  return escapedContent.replace(regex, `<mark class="${HIGHLIGHT_MARK_CLASS}">$1</mark>`)
 }
 </script>
 
@@ -159,9 +198,9 @@ function highlightContent(content: string): string {
 
         <!-- 气泡和上下文按钮 -->
         <!-- max-w-[calc(100%-48px)] = 100% - 头像宽度(36px) - gap(12px) -->
-        <div class="flex items-start gap-1 max-w-[calc(100%-68px)]" :class="isOwner ? 'flex-row-reverse' : ''">
+        <div class="flex min-w-0 max-w-[calc(100%-68px)] items-start gap-1" :class="isOwner ? 'flex-row-reverse' : ''">
           <div
-            class="relative inline-block rounded-2xl px-3.5 py-2.5 transition-all duration-300 border border-gray-100 dark:border-gray-800/40"
+            class="relative min-w-0 max-w-full rounded-2xl border border-gray-100 px-3.5 py-2.5 transition-all duration-300 dark:border-gray-800/40"
             :class="bubbleColor"
           >
             <!-- 回复引用样式 -->
@@ -181,9 +220,43 @@ function highlightContent(content: string): string {
               </p>
             </div>
             <p
-              class="whitespace-pre-wrap break-all text-sm text-gray-700 dark:text-gray-200"
-              v-html="highlightContent(message.content || '')"
+              class="chat-record-message-content whitespace-pre-wrap break-all text-sm text-gray-700 dark:text-gray-200"
+              v-html="highlightContent(visibleMessageContent)"
             />
+            <ul
+              v-if="contentAnalysis.linkUrls.length"
+              class="chat-record-message-content mt-2 min-w-0 max-w-full list-disc space-y-1 pl-4 text-xs text-primary-600 dark:text-primary-400"
+            >
+              <li v-for="linkUrl in contentAnalysis.linkUrls" :key="linkUrl" class="min-w-0">
+                <a
+                  :href="linkUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="block min-w-0 max-w-full truncate transition-colors hover:text-primary-700 dark:hover:text-primary-300"
+                  @click.stop
+                >
+                  {{ linkUrl }}
+                </a>
+              </li>
+            </ul>
+            <button
+              v-if="contentAnalysis.shouldCollapse"
+              type="button"
+              class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-500 transition-colors select-none hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 cursor-pointer"
+              @click="showFullMessyContent = !showFullMessyContent"
+            >
+              <UIcon
+                :name="showFullMessyContent ? 'i-heroicons-chevron-up' : 'i-heroicons-chevron-down'"
+                class="h-3.5 w-3.5"
+              />
+              <span>
+                {{
+                  showFullMessyContent
+                    ? t('records.messageItem.collapseMessyContent')
+                    : t('records.messageItem.expandMessyContent')
+                }}
+              </span>
+            </button>
           </div>
 
           <!-- 上下文查看按钮 -->
