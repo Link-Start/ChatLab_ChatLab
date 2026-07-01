@@ -1,4 +1,11 @@
-export type { HttpRouteContext, AgentStreamRequest, AiToolExecuteRequest, AiToolExecuteResult } from './context'
+export type {
+  HttpRouteContext,
+  AutomationRouteContext,
+  AutomationDataSourceLike,
+  AgentStreamRequest,
+  AiToolExecuteRequest,
+  AiToolExecuteResult,
+} from './context'
 export { registerSharedRoutes } from './register'
 export type { SharedRouteOptions } from './register'
 export { setAuthToken, setRequireAuth, authHook } from './auth'
@@ -40,3 +47,4 @@ export { registerAiLlmStreamRoutes } from './routes/web/ai-llm-stream'
 export { registerAiAgentStreamRoutes } from './routes/web/ai-agent-stream'
 export { registerAiToolRoutes } from './routes/web/ai-tools'
 export { registerTelemetryRoutes } from './routes/web/telemetry'
+export { registerAutomationRoutes } from './routes/web/automation'

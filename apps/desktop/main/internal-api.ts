@@ -32,6 +32,7 @@ import multipart from '@fastify/multipart'
 import type { ConfigStorage } from '@openchatlab/node-runtime'
 import {
   registerSharedRoutes,
+  registerAutomationRoutes,
   ApiError,
   ApiErrorCode,
   apiErrorFromUnknown,
@@ -39,6 +40,7 @@ import {
   serverError,
 } from '@openchatlab/http-routes'
 import type { HttpRouteContext } from '@openchatlab/http-routes'
+import { reloadTimer, stopTimer } from '@openchatlab/sync'
 import { resolveApiKey, writeAuthProfile, deleteAuthProfile } from '@openchatlab/config'
 import { getManager as getAIChatManager } from './ai/chats'
 import { getManager as getAssistantManager } from './ai/assistant/manager'
@@ -157,6 +159,8 @@ export async function startInternalServer(pathProvider: PathProvider): Promise<I
 
     const { shell } = await import('electron')
     const { getDefaultUserDataDir, getUserDataDir, getDownloadsDir } = await import('./paths')
+    const { getDataSourceManager, getPullEngine } = await import('./ipc/api')
+    const routeDbManager = newDbManager
 
     const ctx: HttpRouteContext = {
       dbManager: newDbManager,
@@ -174,6 +178,13 @@ export async function startInternalServer(pathProvider: PathProvider): Promise<I
       customProviderStore: new CustomProviderStore(configStorage),
       customModelStore: new CustomModelStore(configStorage),
       getCurrentAiLogPath: () => aiLogger.getExistingLogPath(),
+      automation: {
+        dsManager: getDataSourceManager(),
+        pullEngine: getPullEngine(),
+        deleteSessionData: (sessionId) => routeDbManager.deleteSessionDatabaseFiles(sessionId),
+        reloadTimer,
+        stopTimer,
+      },
       semanticIndexService: newSemanticIndexService ?? undefined,
       openDirectory: (dirPath) => shell.openPath(dirPath).then(() => {}),
       showInFolder: (filePath) => {
@@ -242,7 +253,7 @@ export async function startInternalServer(pathProvider: PathProvider): Promise<I
         reply.code(413).send(errorResponse(bodyErr))
         return
       }
-      const statusCode = (error as any).statusCode
+      const statusCode = (error as { statusCode?: number }).statusCode
       if (statusCode && statusCode >= 400 && statusCode < 600) {
         reply.code(statusCode).send({ success: false, error: { code: 'CLIENT_ERROR', message: error.message } })
         return
@@ -253,6 +264,7 @@ export async function startInternalServer(pathProvider: PathProvider): Promise<I
     })
 
     registerSharedRoutes(newServer, ctx, { requireAi: true })
+    registerAutomationRoutes(newServer, ctx)
 
     await newServer.listen({ port: 0, host: '127.0.0.1' })
 

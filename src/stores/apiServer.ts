@@ -111,6 +111,7 @@ interface ApiTransport {
 
 function createElectronTransport(): ApiTransport {
   const api = window.apiServerApi
+  const http = createWebTransport()
   return {
     getConfig: () => api.getConfig(),
     getStatus: () => api.getStatus(),
@@ -118,16 +119,17 @@ function createElectronTransport(): ApiTransport {
     setPort: (port) => api.setPort(port),
     regenerateToken: () => api.regenerateToken(),
     onStartupError: (cb) => api.onStartupError(cb),
-    getDataSources: () => api.getDataSources(),
-    addDataSource: (partial) => api.addDataSource(partial),
-    updateDataSource: (id, updates) => api.updateDataSource(id, updates),
-    deleteDataSource: (id) => api.deleteDataSource(id),
-    addImportSessions: (sourceId, sessions) => api.addImportSessions(sourceId, sessions),
-    removeImportSession: (sourceId, sessionId, deleteData?) => api.removeImportSession(sourceId, sessionId, deleteData),
-    triggerPull: (sourceId, sessionId?) => api.triggerPull(sourceId, sessionId),
-    triggerPullAll: (sourceId) => api.triggerPullAll(sourceId),
-    onPullResult: (cb) => api.onPullResult(cb),
-    fetchRemoteSessions: (baseUrl, token?, query?) => api.fetchRemoteSessions(baseUrl, token, query),
+    getDataSources: () => http.getDataSources(),
+    addDataSource: (partial) => http.addDataSource(partial),
+    updateDataSource: (id, updates) => http.updateDataSource(id, updates),
+    deleteDataSource: (id) => http.deleteDataSource(id),
+    addImportSessions: (sourceId, sessions) => http.addImportSessions(sourceId, sessions),
+    removeImportSession: (sourceId, sessionId, deleteData?) =>
+      http.removeImportSession(sourceId, sessionId, deleteData),
+    triggerPull: (sourceId, sessionId?) => http.triggerPull(sourceId, sessionId),
+    triggerPullAll: (sourceId) => http.triggerPullAll(sourceId),
+    onPullResult: (cb) => http.onPullResult(cb),
+    fetchRemoteSessions: (baseUrl, token?, query?) => http.fetchRemoteSessions(baseUrl, token, query),
   }
 }
 
@@ -138,7 +140,17 @@ function createWebTransport(): ApiTransport {
     const resp = await fetchWithAuth(url, options)
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({}))
-      throw new Error((body as any)?.error || `HTTP ${resp.status}`)
+      const errorBody = body as { error?: unknown }
+      const errorMessage =
+        typeof errorBody.error === 'string'
+          ? errorBody.error
+          : typeof errorBody.error === 'object' &&
+              errorBody.error &&
+              'message' in errorBody.error &&
+              typeof errorBody.error.message === 'string'
+            ? errorBody.error.message
+            : `HTTP ${resp.status}`
+      throw new Error(errorMessage)
     }
     return resp.json()
   }

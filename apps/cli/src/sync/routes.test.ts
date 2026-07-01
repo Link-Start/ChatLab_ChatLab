@@ -6,6 +6,7 @@ import test from 'node:test'
 import Fastify from 'fastify'
 import { DataSourceManager } from '@openchatlab/sync'
 import { registerAutomationRoutes } from './routes'
+import type { AutomationRouteContext } from '@openchatlab/http-routes'
 
 function makeTempDir(): string {
   const baseDir = fs.existsSync('/private/tmp') ? '/private/tmp' : os.tmpdir()
@@ -25,19 +26,20 @@ test('DELETE import session deletes imported local session when deleteData=true'
 
   const deletedSessionIds: string[] = []
   const app = Fastify()
+  const pullEngine: AutomationRouteContext['pullEngine'] = {
+    triggerPull: async () => ({ success: true, newMessageCount: 0 }),
+    triggerPullAll: async () => ({ success: true, newMessageCount: 0 }),
+    getProgress: () => [],
+  }
   registerAutomationRoutes(app, {
-    dsManager,
-    pullEngine: {
-      triggerPull: async () => ({ success: true, newMessageCount: 0 }),
-      triggerPullAll: async () => ({ success: true, newMessageCount: 0 }),
-      getProgress: () => [],
-    } as any,
-    dbManager: {
-      deleteSessionDatabaseFiles: (sessionId: string) => {
+    automation: {
+      dsManager,
+      pullEngine,
+      serverInfo: { port: 5200, host: '127.0.0.1', token: 'api-token' },
+      deleteSessionData: (sessionId: string) => {
         deletedSessionIds.push(sessionId)
       },
-    } as any,
-    serverInfo: { port: 5200, host: '127.0.0.1', token: 'api-token' },
+    },
   })
   await app.ready()
 

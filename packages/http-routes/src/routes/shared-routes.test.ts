@@ -17,6 +17,7 @@ import { PreferencesManager, type DatabaseManager, type SessionRuntimeAdapter } 
 import type { HttpRouteContext } from '../context'
 import { registerSharedRoutes } from '../register'
 import { registerRestSessionRoutes } from './sessions'
+import { registerAutomationRoutes } from './web/automation'
 import { registerSessionRoutes } from './web/sessions'
 
 const nativeBinding = path.resolve('apps/cli/native/better_sqlite3.node')
@@ -341,6 +342,56 @@ describe('registerSharedRoutes smoke tests', () => {
       assert.equal(resp.statusCode, 200)
       assert.deepEqual(resp.json(), { success: false, error: 'Opening AI logs is only supported on this device' })
       assert.equal(didOpen, false)
+    } finally {
+      await routeApp.close()
+    }
+  })
+
+  it('DELETE /_web/automation/data-sources/:id/sessions/:sessId deletes imported local session when deleteData=true', async () => {
+    const ds = {
+      id: 'source-1',
+      sessions: [{ id: 'session-1', name: 'First chat', remoteSessionId: 'remote-1', targetSessionId: 'local-1' }],
+    }
+    const deletedSessionIds: string[] = []
+    const ctx = createTestContext()
+    ctx.automation = {
+      serverInfo: { port: 5200, host: '127.0.0.1', token: 'api-token' },
+      dsManager: {
+        loadAll: () => [ds],
+        get: (id: string) => (id === ds.id ? ds : null),
+        add: (source: Record<string, unknown>) => ({ id: 'new-source', sessions: [], ...source }),
+        update: () => null,
+        delete: () => false,
+        addSessions: () => [],
+        removeSession: (sourceId: string, sessionId: string) => {
+          if (sourceId !== ds.id || sessionId !== ds.sessions[0].id) return null
+          return ds.sessions.shift() ?? null
+        },
+      },
+      pullEngine: {
+        triggerPull: async () => ({ success: true, newMessageCount: 0 }),
+        triggerPullAll: async () => ({ success: true, newMessageCount: 0 }),
+        getProgress: () => [],
+      },
+      deleteSessionData: (sessionId: string) => {
+        deletedSessionIds.push(sessionId)
+      },
+    }
+
+    const routeApp = Fastify()
+    registerAutomationRoutes(routeApp, ctx)
+    await routeApp.ready()
+
+    try {
+      const resp = await routeApp.inject({
+        method: 'DELETE',
+        url: '/_web/automation/data-sources/source-1/sessions/session-1?deleteData=true',
+      })
+
+      assert.equal(resp.statusCode, 200)
+      assert.deepEqual(resp.json(), { success: true })
+      assert.deepEqual(deletedSessionIds, ['local-1'])
+      assert.deepEqual(ds.sessions, [])
     } finally {
       await routeApp.close()
     }

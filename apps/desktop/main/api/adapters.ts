@@ -3,7 +3,7 @@
  *
  * ElectronFetcher: uses electron.net.request
  * WorkerImporter: uses worker thread IPC (streamImport / incrementalImport)
- * BrowserWindowNotifier: uses BrowserWindow.webContents.send
+ * BrowserWindowNotifier: notifies renderer when imported sessions change
  */
 
 import * as fs from 'fs'
@@ -165,13 +165,7 @@ export class BrowserWindowNotifier implements SyncNotifier {
     }
   }
 
-  onPullResult(sourceId: string, sessionId: string | undefined, status: 'success' | 'error', detail: string): void {
-    try {
-      for (const win of BrowserWindow.getAllWindows()) {
-        win.webContents.send('api:pullResult', { sourceId, sessionId, status, detail })
-      }
-    } catch {
-      /* ignore */
-    }
+  onPullResult(): void {
+    // Pull-result updates are polled through the shared HTTP route.
   }
 }
