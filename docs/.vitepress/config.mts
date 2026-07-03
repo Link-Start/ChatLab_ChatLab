@@ -10,6 +10,7 @@ const enSidebar: DefaultTheme.SidebarItem[] = [
       { text: 'Export Chat Records', link: '/usage/how-to-export' },
       { text: 'Import Chat Records', link: '/usage/how-to-import' },
       { text: 'Configure AI', link: '/usage/how-to-config-ai' },
+      { text: 'External Agent Calls', link: '/usage/cli-query' },
       { text: 'Troubleshooting', link: '/usage/troubleshooting' },
     ],
   },
@@ -23,9 +24,7 @@ const enSidebar: DefaultTheme.SidebarItem[] = [
   },
   {
     text: 'Contributing',
-    items: [
-      { text: 'Development Guide', link: '/contributing/development' },
-    ],
+    items: [{ text: 'Development Guide', link: '/contributing/development' }],
   },
   { text: 'Acknowledgments', link: '/contributing/acknowledgments' },
 ]
@@ -39,6 +38,7 @@ const cnSidebar: DefaultTheme.SidebarItem[] = [
       { text: '导出聊天记录', link: '/cn/usage/how-to-export' },
       { text: '导入聊天记录', link: '/cn/usage/how-to-import' },
       { text: '配置 AI', link: '/cn/usage/how-to-config-ai' },
+      { text: '外部 Agent 调用', link: '/cn/usage/cli-query' },
       { text: '故障排查', link: '/cn/usage/troubleshooting' },
       { text: '常见问题', link: '/cn/usage/faq' },
     ],
@@ -55,9 +55,7 @@ const cnSidebar: DefaultTheme.SidebarItem[] = [
   },
   {
     text: '贡献',
-    items: [
-      { text: '开发指南', link: '/cn/contributing/development' },
-    ],
+    items: [{ text: '开发指南', link: '/cn/contributing/development' }],
   },
   { text: '致谢', link: '/cn/contributing/acknowledgments' },
 ]
