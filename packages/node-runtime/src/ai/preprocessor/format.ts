@@ -59,6 +59,7 @@ export function formatMessageCompact(
     content: string | null
     timestamp: number
     mergedEndId?: number
+    mergedIds?: number[]
   },
   locale?: string,
   options?: FormatMessageOptions
@@ -75,11 +76,17 @@ export function formatMessageCompact(
   let idPrefix = ''
   if (options?.includeMessageId && msg.id != null) {
     const range = msg.mergedEndId != null && msg.mergedEndId !== msg.id ? `${msg.id}-${msg.mergedEndId}` : `${msg.id}`
-    const hitMark = options.hitIds?.has(msg.id) ? '*' : ''
+    const hitMark = isHitMessage(msg, options.hitIds) ? '*' : ''
     idPrefix = `[#${range}${hitMark}] `
   }
 
   return `${idPrefix}${time} ${msg.senderName}: ${content}`
+}
+
+function isHitMessage(msg: { id?: number; mergedIds?: number[] }, hitIds?: Set<number>): boolean {
+  if (!hitIds) return false
+  if (msg.id != null && hitIds.has(msg.id)) return true
+  return msg.mergedIds?.some((id) => hitIds.has(id)) ?? false
 }
 
 /**
