@@ -77,6 +77,17 @@ export function parseContextIds(value: string): number[] {
   return ids
 }
 
+export function assertContextAnchorsPresent(ids: number[], messages: MessageLike[], rawValue: string): void {
+  const returnedIds = new Set(messages.map((message) => message.id))
+  if (ids.some((id) => !returnedIds.has(id))) {
+    throw new QueryError({
+      code: 'MESSAGE_NOT_FOUND',
+      message: `No messages found for id(s) ${rawValue}`,
+      hint: 'Use a single numeric id from [#id]/[#id*] markers; merged [#a-b] ranges are display-only',
+    })
+  }
+}
+
 function addSharedOptions(cmd: Command): Command {
   return cmd
     .option('--session <ref>', 'Session id or unique name (auto-selected when only one exists)')
@@ -302,13 +313,7 @@ export function registerMessageCommands(program: Command): void {
         assertRawAllowed(ctx, options)
         const window = parseLimit(options.window, 10, 100, '--window')
         const messages = getMessageContext(ctx.db, ids, window)
-        if (messages.length === 0) {
-          throw new QueryError({
-            code: 'MESSAGE_NOT_FOUND',
-            message: `No messages found for id(s) ${options.id}`,
-            hint: 'Use a single numeric id from [#id]/[#id*] markers; merged [#a-b] ranges are display-only',
-          })
-        }
+        assertContextAnchorsPresent(ids, messages, options.id)
         const meta: Record<string, unknown> = {
           session: ctx.session,
           anchorIds: ids,

@@ -754,7 +754,7 @@ export function getConversationBetween(
     WHERE msg.sender_id IN (?, ?) ${timeCondition}
     AND msg.content IS NOT NULL AND msg.content != ''
     ${excludeCondition}
-    ORDER BY msg.ts DESC LIMIT ? OFFSET ?
+    ORDER BY msg.ts DESC, msg.id DESC LIMIT ? OFFSET ?
   `
   const rows = db
     .prepare(sql)

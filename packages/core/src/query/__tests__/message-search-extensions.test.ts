@@ -199,6 +199,18 @@ describe('getConversationBetween pagination and blacklist (in-memory SQLite)', (
     )
   })
 
+  it('uses id as a tie-breaker for same-second between paging', () => {
+    const insert = raw.prepare('INSERT INTO message (id, sender_id, ts, type, content) VALUES (?, ?, ?, ?, ?)')
+    insert.run(7, 1, 6000, 0, '同秒 A')
+    insert.run(8, 2, 6000, 0, '同秒 B')
+
+    const page = getConversationBetween(db, 1, 2, undefined, 2)
+    assert.deepEqual(
+      page.messages.map((m) => m.id),
+      [7, 8]
+    )
+  })
+
   it('excludeKeywords removes rows from both page and total (visible counting)', () => {
     const result = getConversationBetween(db, 1, 2, undefined, 10, { excludeKeywords: ['机密'] })
     assert.equal(result.total, 4)

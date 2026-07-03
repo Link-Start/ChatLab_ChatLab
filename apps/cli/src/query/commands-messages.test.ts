@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { capExpandedSearchMessages, parseContextIds } from './commands-messages'
+import { assertContextAnchorsPresent, capExpandedSearchMessages, parseContextIds } from './commands-messages'
 import type { MessageLike } from './messages-output'
 
 describe('capExpandedSearchMessages', () => {
@@ -30,5 +30,22 @@ describe('parseContextIds', () => {
   it('requires positive numeric message ids', () => {
     assert.deepEqual(parseContextIds('1021,1058'), [1021, 1058])
     assert.throws(() => parseContextIds('0'), /Invalid --id value/)
+  })
+})
+
+describe('assertContextAnchorsPresent', () => {
+  it('rejects context results that do not include every requested anchor id', () => {
+    assert.throws(
+      () =>
+        assertContextAnchorsPresent(
+          [999],
+          [
+            { id: 10, senderName: 'Alice', content: 'before', timestamp: 1710000000 },
+            { id: 11, senderName: 'Bob', content: 'after', timestamp: 1710000001 },
+          ],
+          '999'
+        ),
+      /No messages found/
+    )
   })
 })
