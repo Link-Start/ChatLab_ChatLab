@@ -6,7 +6,8 @@
 
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { topicsAgentText, type TopicListItem } from './commands-topics-sql'
+import { parseSqlRowLimit, topicsAgentText, type TopicListItem } from './commands-topics-sql'
+import { QueryError } from './envelope'
 
 const items: TopicListItem[] = [
   {
@@ -39,5 +40,14 @@ describe('topicsAgentText', () => {
 
   it('falls back to a stable line when no summaries exist', () => {
     assert.equal(topicsAgentText([]), 'No summaries.')
+  })
+})
+
+describe('parseSqlRowLimit', () => {
+  it('rejects zero because SQL maxRows=0 means unlimited', () => {
+    assert.throws(
+      () => parseSqlRowLimit('0'),
+      (err: unknown) => err instanceof QueryError && err.code === 'INVALID_ARGUMENT'
+    )
   })
 })

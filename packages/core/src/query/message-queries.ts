@@ -39,6 +39,7 @@ export interface QueryMessagesOptions {
   endTs?: number
   senderId?: number
   limit?: number
+  maxLimit?: number
   offset?: number
 }
 
@@ -55,7 +56,8 @@ export interface QueryMessagesResult {
  * 支持关键词、时间范围、发送者过滤
  */
 export function queryMessages(db: DatabaseAdapter, options?: QueryMessagesOptions): QueryMessagesResult {
-  const limit = Math.min(1000, Math.max(1, options?.limit ?? 100))
+  const maxLimit = Math.max(1, options?.maxLimit ?? 1000)
+  const limit = Math.min(maxLimit, Math.max(1, options?.limit ?? 100))
   const offset = options?.offset ?? 0
   const page = Math.floor(offset / limit) + 1
 

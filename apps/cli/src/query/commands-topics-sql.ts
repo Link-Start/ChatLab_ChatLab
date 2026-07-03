@@ -20,6 +20,10 @@ function enabledRules(ctx: QueryContext): DesensitizeRule[] {
   return ctx.preprocessConfig.desensitize ? ctx.preprocessConfig.desensitizeRules.filter((r) => r.enabled) : []
 }
 
+export function parseSqlRowLimit(value: string | undefined): number {
+  return parseLimit(value, 100, 1000, '--limit', 1)
+}
+
 export interface TopicListItem {
   id: number
   since: string
@@ -227,7 +231,7 @@ export function registerSqlCommands(program: Command): void {
             })
           }
           assertRawAllowed(ctx, options)
-          const limit = parseLimit(options.limit, 100, 1000, '--limit')
+          const limit = parseSqlRowLimit(options.limit)
 
           let result
           try {
