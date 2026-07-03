@@ -6,7 +6,15 @@
 
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseTimeOptions, parseLimit, queryFingerprint, encodeCursor, decodeCursor, epochToIso } from './parse'
+import {
+  parseTimeOptions,
+  parseLimit,
+  queryFingerprint,
+  encodeCursor,
+  decodeCursor,
+  epochToIso,
+  resolveTimeOptionsForCursor,
+} from './parse'
 import { QueryError } from './envelope'
 
 // Fixed reference: 2026-07-03 15:30:00 local time
@@ -139,5 +147,20 @@ describe('cursor', () => {
       () => decodeCursor('not-a-cursor', fp),
       (err: unknown) => err instanceof QueryError && err.code === 'CURSOR_INVALID'
     )
+  })
+
+  it('reuses frozen time bounds embedded in cursor tokens', () => {
+    const firstRange = resolveTimeOptionsForCursor({ last: '7d' }, NOW)
+    const fp = queryFingerprint({
+      command: 'messages.list',
+      startTs: firstRange.startTs ?? null,
+      endTs: firstRange.endTs ?? null,
+    })
+    const token = encodeCursor(50, fp, { time: firstRange })
+
+    const later = new Date(NOW.getTime() + 60_000)
+    const secondRange = resolveTimeOptionsForCursor({ last: '7d', cursor: token }, later)
+    assert.deepEqual(secondRange, firstRange)
+    assert.equal(decodeCursor(token, fp), 50)
   })
 })

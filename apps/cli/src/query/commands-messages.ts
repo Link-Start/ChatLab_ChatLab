@@ -16,7 +16,7 @@ import {
 import { runQuery } from './runner'
 import { createQueryContext, assertRawAllowed } from './context'
 import { resolveMember } from './resolve'
-import { parseTimeOptions, parseLimit, queryFingerprint, encodeCursor, decodeCursor } from './parse'
+import { parseLimit, queryFingerprint, encodeCursor, decodeCursor, resolveTimeOptionsForCursor } from './parse'
 import { QueryError } from './envelope'
 import { buildMessagesResult, assertRawFormatCompatible, type MessageLike } from './messages-output'
 
@@ -70,7 +70,7 @@ export function registerMessageCommands(program: Command): void {
       const ctx = createQueryContext(options)
       try {
         assertRawAllowed(ctx, options)
-        const time = parseTimeOptions(options)
+        const time = resolveTimeOptionsForCursor(options)
         const member = options.member ? resolveMember(ctx.db, options.member) : undefined
         const limit = parseLimit(options.limit, 50, 500, '--limit', 1)
         const excludeKeywords = options.raw ? undefined : ctx.preprocessConfig.blacklistKeywords
@@ -104,7 +104,7 @@ export function registerMessageCommands(program: Command): void {
           totalHits: total,
           returnedHits: result.messages.length,
           hasMore,
-          ...(hasMore ? { nextCursor: encodeCursor(offset + result.messages.length, fingerprint) } : {}),
+          ...(hasMore ? { nextCursor: encodeCursor(offset + result.messages.length, fingerprint, { time }) } : {}),
         }
 
         return buildMessagesResult(format, ctx, options, result.messages, meta, {
@@ -159,7 +159,7 @@ export function registerMessageCommands(program: Command): void {
         const ctx = createQueryContext(options)
         try {
           assertRawAllowed(ctx, options)
-          const time = parseTimeOptions(options)
+          const time = resolveTimeOptionsForCursor(options)
           const member = options.member ? resolveMember(ctx.db, options.member) : undefined
           const limit = parseLimit(options.limit, 20, 500, '--limit', 1)
           const context = parseLimit(options.context, 0, 50, '--context')
@@ -230,7 +230,7 @@ export function registerMessageCommands(program: Command): void {
             totalHits: total,
             returnedHits: hits.length,
             hasMore,
-            ...(hasMore ? { nextCursor: encodeCursor(offset + hits.length, fingerprint) } : {}),
+            ...(hasMore ? { nextCursor: encodeCursor(offset + hits.length, fingerprint, { time }) } : {}),
             ...(warnings.length > 0 ? { warnings } : {}),
           }
 
@@ -312,7 +312,7 @@ export function registerMessageCommands(program: Command): void {
       const ctx = createQueryContext(options)
       try {
         assertRawAllowed(ctx, options)
-        const time = parseTimeOptions(options)
+        const time = resolveTimeOptionsForCursor(options)
         const memberA = resolveMember(ctx.db, options.member[0])
         const memberB = resolveMember(ctx.db, options.member[1])
         const limit = parseLimit(options.limit, 50, 500, '--limit', 1)
@@ -346,7 +346,7 @@ export function registerMessageCommands(program: Command): void {
           totalHits: result.total,
           returnedHits: returned,
           hasMore,
-          ...(hasMore ? { nextCursor: encodeCursor(offset + returned, fingerprint) } : {}),
+          ...(hasMore ? { nextCursor: encodeCursor(offset + returned, fingerprint, { time }) } : {}),
         }
 
         return buildMessagesResult(format, ctx, options, result.messages, meta, {

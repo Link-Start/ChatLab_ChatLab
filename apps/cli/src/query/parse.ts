@@ -23,6 +23,10 @@ export interface ResolvedTimeRange {
   meta: { since: string | null; until: string | null }
 }
 
+export interface CursorSnapshot {
+  time?: ResolvedTimeRange
+}
+
 /** Format a Date as ISO 8601 with the local UTC offset (sortable, self-describing). */
 export function toIsoWithOffset(date: Date): string {
   const pad = (n: number, w = 2) => String(Math.abs(n)).padStart(w, '0')
@@ -216,12 +220,111 @@ export function queryFingerprint(conditions: Record<string, unknown>): string {
   return createHash('sha256').update(canonical).digest('hex').slice(0, 12)
 }
 
-export function encodeCursor(offset: number, fingerprint: string): string {
+export function freezeTimeRangeForCursor(time: ResolvedTimeRange): ResolvedTimeRange {
+  if (time.endTs !== undefined || time.meta.until === null) return time
+  const endMs = new Date(time.meta.until).getTime()
+  if (Number.isNaN(endMs)) return time
+  return { ...time, endTs: Math.floor(endMs / 1000) }
+}
+
+export function resolveTimeOptionsForCursor(
+  options: TimeCliOptions & { cursor?: string },
+  now = new Date()
+): ResolvedTimeRange {
+  const snapshot = options.cursor ? getCursorSnapshot(options.cursor) : undefined
+  return snapshot?.time ?? freezeTimeRangeForCursor(parseTimeOptions(options, now))
+}
+
+export function encodeCursor(offset: number, fingerprint: string, snapshot?: CursorSnapshot): string {
+  if (snapshot?.time) {
+    return Buffer.from(JSON.stringify({ v: 2, fp: fingerprint, offset, time: snapshot.time }), 'utf8').toString(
+      'base64url'
+    )
+  }
   return Buffer.from(`${fingerprint}:${offset}`, 'utf8').toString('base64url')
+}
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function decodeCursorEnvelope(
+  token: string
+): { fingerprint: string; offset: number; snapshot?: CursorSnapshot } | null {
+  let decoded = ''
+  try {
+    decoded = Buffer.from(token, 'base64url').toString('utf8')
+  } catch {
+    return null
+  }
+
+  let payload: unknown
+  try {
+    payload = JSON.parse(decoded)
+  } catch {
+    return null
+  }
+
+  const object = asObject(payload)
+  if (
+    !object ||
+    object.v !== 2 ||
+    typeof object.fp !== 'string' ||
+    typeof object.offset !== 'number' ||
+    !Number.isInteger(object.offset) ||
+    object.offset < 0
+  ) {
+    return null
+  }
+
+  const snapshot = decodeCursorSnapshot(object)
+  return { fingerprint: object.fp, offset: object.offset, ...(snapshot ? { snapshot } : {}) }
+}
+
+function decodeCursorSnapshot(payload: Record<string, unknown>): CursorSnapshot | undefined {
+  const timeObject = asObject(payload.time)
+  if (!timeObject) return undefined
+  const metaObject = asObject(timeObject.meta)
+  if (!metaObject) return undefined
+
+  const startTs = timeObject.startTs
+  const endTs = timeObject.endTs
+  const since = metaObject.since
+  const until = metaObject.until
+  if (startTs !== undefined && typeof startTs !== 'number') return undefined
+  if (endTs !== undefined && typeof endTs !== 'number') return undefined
+  if (since !== null && typeof since !== 'string') return undefined
+  if (until !== null && typeof until !== 'string') return undefined
+
+  return {
+    time: {
+      ...(startTs !== undefined ? { startTs } : {}),
+      ...(endTs !== undefined ? { endTs } : {}),
+      meta: { since, until },
+    },
+  }
+}
+
+export function getCursorSnapshot(token: string): CursorSnapshot | undefined {
+  return decodeCursorEnvelope(token)?.snapshot
 }
 
 /** Decode a cursor and validate it against the current query fingerprint. */
 export function decodeCursor(token: string, fingerprint: string): number {
+  const envelope = decodeCursorEnvelope(token)
+  if (envelope) {
+    if (envelope.fingerprint !== fingerprint) {
+      throw new QueryError({
+        code: 'CURSOR_INVALID',
+        message: 'Cursor does not match the current query conditions',
+        hint: 'Cursors are only valid for the exact query that produced them; re-run the query without --cursor',
+      })
+    }
+    return envelope.offset
+  }
+
   let decoded = ''
   try {
     decoded = Buffer.from(token, 'base64url').toString('utf8')
