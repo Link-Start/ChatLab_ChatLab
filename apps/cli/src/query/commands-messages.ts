@@ -37,6 +37,33 @@ interface CommonMessageOptions {
   verbose?: boolean
 }
 
+export function capExpandedSearchMessages(
+  messages: MessageLike[],
+  hitIds: ReadonlySet<number>,
+  maxMessages: number
+): MessageLike[] {
+  if (maxMessages <= 0) return []
+  if (messages.length <= maxMessages) return messages
+
+  const capped = messages.slice(0, maxMessages)
+  const includedIds = new Set(capped.map((message) => message.id))
+  const missingHits = messages.filter((message) => hitIds.has(message.id) && !includedIds.has(message.id))
+
+  for (const hit of missingHits) {
+    let replaceIndex = -1
+    for (let i = capped.length - 1; i >= 0; i--) {
+      if (!hitIds.has(capped[i].id)) {
+        replaceIndex = i
+        break
+      }
+    }
+    if (replaceIndex === -1) break
+    capped[replaceIndex] = hit
+  }
+
+  return capped.sort((a, b) => messages.indexOf(a) - messages.indexOf(b))
+}
+
 function addSharedOptions(cmd: Command): Command {
   return cmd
     .option('--session <ref>', 'Session id or unique name (auto-selected when only one exists)')
@@ -215,7 +242,7 @@ export function registerMessageCommands(program: Command): void {
             const tail = hits.filter((m) => !keptHits.has(m.id))
             pipelineMessages = [...expanded, ...tail]
             if (pipelineMessages.length > maxMessages) {
-              pipelineMessages = pipelineMessages.slice(0, maxMessages)
+              pipelineMessages = capExpandedSearchMessages(pipelineMessages, hitIds, maxMessages)
               warnings.push(`response capped at ${maxMessages} messages`)
             }
           }
