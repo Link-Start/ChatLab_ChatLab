@@ -249,7 +249,7 @@ export function registerMessageCommands(program: Command): void {
   // ---------- messages context ----------
   const contextCmd = messagesCmd
     .command('context')
-    .description('Show messages around specific message ids (evidence follow-up)')
+    .description('Show messages around specific numeric message ids')
     .requiredOption('--id <ids>', 'Message id(s), comma-separated')
     .option('--window <n>', 'Messages before/after each id (default 10, max 100)')
   addSharedOptions(contextCmd)
@@ -273,7 +273,7 @@ export function registerMessageCommands(program: Command): void {
           throw new QueryError({
             code: 'MESSAGE_NOT_FOUND',
             message: `No messages found for id(s) ${options.id}`,
-            hint: 'Message ids come from [#id] markers in search results',
+            hint: 'Use a single numeric id from [#id]/[#id*] markers; merged [#a-b] ranges are display-only',
           })
         }
         const meta: Record<string, unknown> = {
