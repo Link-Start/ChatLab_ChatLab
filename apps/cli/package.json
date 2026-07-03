@@ -12,7 +12,6 @@
     "bin/",
     "dist/",
     "dist-web/",
-    "SKILL.md",
     "LICENSE"
   ],
   "engines": {

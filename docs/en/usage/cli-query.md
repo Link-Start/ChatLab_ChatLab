@@ -79,7 +79,19 @@ Failures return `{ "ok": false, "error": { "code", "message", "hint", "candidate
 
 ## Agent usage guide
 
-The npm package ships a `SKILL.md` (command quick reference + task recipes) you can drop into your project's `AGENTS.md`, a Claude Code skill, or Cursor rules. Agents can also run `chatlab manifest` to fetch the machine-readable command tree in one call.
+Install the official `chatlab-analyze` skill through the general Agent Skills CLI:
+
+```bash
+npx skills add ChatLab/ChatLab --skill chatlab-analyze -g
+```
+
+After installation, ask Codex, Claude Code, Cursor, or another external agent:
+
+```text
+chatlab-analyze help me analyze my chat history with Alice
+```
+
+The skill tells the agent to run `chatlab manifest` first, then query chat records safely with explicit `--format agent/json` commands.
 
 A typical recipe — "who mentioned this first? give evidence":
 

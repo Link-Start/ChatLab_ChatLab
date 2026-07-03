@@ -79,7 +79,19 @@ agent/json 模式下 stdout 只包含一个 JSON 响应信封，日志一律走 
 
 ## 给 Agent 的使用指南
 
-npm 包内附带 `SKILL.md`（Agent 使用指南：命令速查 + 任务配方），可放入项目的 `AGENTS.md`、Claude Code skill 或 Cursor rules。也可以让 Agent 直接执行 `chatlab manifest` 获取机读命令清单。
+推荐通过通用 Agent Skills CLI 安装官方 `chatlab-analyze` 技能：
+
+```bash
+npx skills add ChatLab/ChatLab --skill chatlab-analyze -g
+```
+
+安装后，可以在 Codex、Claude Code、Cursor 等外部 Agent 中直接说：
+
+```text
+chatlab-analyze 帮我分析我和小红的聊天记录
+```
+
+这个技能会引导 Agent 先执行 `chatlab manifest` 获取机读命令清单，再用安全的 `--format agent/json` 查询聊天记录。
 
 典型配方——"谁最早提到某个问题？给出证据"：
 
