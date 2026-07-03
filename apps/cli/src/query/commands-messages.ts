@@ -64,6 +64,19 @@ export function capExpandedSearchMessages(
   return capped.sort((a, b) => messages.indexOf(a) - messages.indexOf(b))
 }
 
+export function parseContextIds(value: string): number[] {
+  const tokens = value.split(',').map((token) => token.trim())
+  const ids = tokens.map((token) => (token.length > 0 ? Number(token) : Number.NaN))
+  if (ids.length === 0 || ids.some((id) => !Number.isInteger(id) || id <= 0)) {
+    throw new QueryError({
+      code: 'INVALID_ARGUMENT',
+      message: `Invalid --id value: ${value}`,
+      hint: 'Pass positive numeric message ids, e.g. --id 1021 or --id 1021,1058',
+    })
+  }
+  return ids
+}
+
 function addSharedOptions(cmd: Command): Command {
   return cmd
     .option('--session <ref>', 'Session id or unique name (auto-selected when only one exists)')
@@ -283,14 +296,7 @@ export function registerMessageCommands(program: Command): void {
   contextCmd.action(async (options: CommonMessageOptions & { id: string; window?: string }) => {
     await runQuery('messages.context', options, async (format) => {
       assertRawFormatCompatible(format, options)
-      const ids = options.id.split(',').map((s) => Number(s.trim()))
-      if (ids.length === 0 || ids.some((n) => !Number.isInteger(n) || n < 0)) {
-        throw new QueryError({
-          code: 'INVALID_ARGUMENT',
-          message: `Invalid --id value: ${options.id}`,
-          hint: 'Pass numeric message ids, e.g. --id 1021 or --id 1021,1058',
-        })
-      }
+      const ids = parseContextIds(options.id)
       const ctx = createQueryContext(options)
       try {
         assertRawAllowed(ctx, options)

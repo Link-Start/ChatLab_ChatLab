@@ -139,6 +139,24 @@ describe('search extensions (in-memory SQLite)', () => {
       [3, 2]
     )
   })
+
+  it('uses id as a tie-breaker for same-second search paging', () => {
+    const insert = raw.prepare('INSERT INTO message (id, sender_id, ts, type, content) VALUES (?, ?, ?, ?, ?)')
+    insert.run(6, 1, 7000, 0, '同秒消息')
+    insert.run(7, 2, 7000, 0, '同秒消息')
+
+    const asc = searchMessagesByKeywords(db, ['同秒'], { sort: 'asc' })
+    assert.deepEqual(
+      asc.messages.map((m) => m.id),
+      [6, 7]
+    )
+
+    const desc = searchMessagesByKeywords(db, ['同秒'])
+    assert.deepEqual(
+      desc.messages.map((m) => m.id),
+      [7, 6]
+    )
+  })
 })
 
 describe('getConversationBetween pagination and blacklist (in-memory SQLite)', () => {

@@ -242,7 +242,7 @@ export function searchMessagesByKeywords(
     .get(...params) as { total: number }
 
   const rows = db
-    .prepare(`${FULL_MSG_SELECT} WHERE 1=1 ${clause} ORDER BY msg.ts ${order} LIMIT ? OFFSET ?`)
+    .prepare(`${FULL_MSG_SELECT} WHERE 1=1 ${clause} ORDER BY msg.ts ${order}, msg.id ${order} LIMIT ? OFFSET ?`)
     .all(...params, limit + 1, offset) as unknown as FullMessageRow[]
 
   const hasMore = rows.length > limit

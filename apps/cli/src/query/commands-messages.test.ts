@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { capExpandedSearchMessages } from './commands-messages'
+import { capExpandedSearchMessages, parseContextIds } from './commands-messages'
 import type { MessageLike } from './messages-output'
 
 describe('capExpandedSearchMessages', () => {
@@ -18,5 +18,17 @@ describe('capExpandedSearchMessages', () => {
       capped.map((message) => message.id),
       [12]
     )
+  })
+})
+
+describe('parseContextIds', () => {
+  it('rejects blank id tokens instead of converting them to 0', () => {
+    assert.throws(() => parseContextIds('1021,'), /Invalid --id value/)
+    assert.throws(() => parseContextIds('1021,,1058'), /Invalid --id value/)
+  })
+
+  it('requires positive numeric message ids', () => {
+    assert.deepEqual(parseContextIds('1021,1058'), [1021, 1058])
+    assert.throws(() => parseContextIds('0'), /Invalid --id value/)
   })
 })
