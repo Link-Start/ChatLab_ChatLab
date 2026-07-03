@@ -1,7 +1,12 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { assertContextAnchorsPresent, capExpandedSearchMessages, parseContextIds } from './commands-messages'
+import {
+  assertContextAnchorsPresent,
+  capExpandedSearchMessages,
+  parseContextIds,
+  parseSearchKeywords,
+} from './commands-messages'
 import type { MessageLike } from './messages-output'
 
 describe('capExpandedSearchMessages', () => {
@@ -30,6 +35,13 @@ describe('parseContextIds', () => {
   it('requires positive numeric message ids', () => {
     assert.deepEqual(parseContextIds('1021,1058'), [1021, 1058])
     assert.throws(() => parseContextIds('0'), /Invalid --id value/)
+  })
+})
+
+describe('parseSearchKeywords', () => {
+  it('trims keywords and rejects blank-only searches', () => {
+    assert.deepEqual(parseSearchKeywords([' alpha ', 'beta']), ['alpha', 'beta'])
+    assert.throws(() => parseSearchKeywords(['   ']), /Invalid search keywords/)
   })
 })
 

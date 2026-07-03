@@ -77,6 +77,18 @@ export function parseContextIds(value: string): number[] {
   return ids
 }
 
+export function parseSearchKeywords(values: string[]): string[] {
+  const keywords = values.map((value) => value.trim()).filter(Boolean)
+  if (keywords.length === 0) {
+    throw new QueryError({
+      code: 'INVALID_ARGUMENT',
+      message: 'Invalid search keywords',
+      hint: 'Pass at least one non-empty search keyword',
+    })
+  }
+  return keywords
+}
+
 export function assertContextAnchorsPresent(ids: number[], messages: MessageLike[], rawValue: string): void {
   const returnedIds = new Set(messages.map((message) => message.id))
   if (ids.some((id) => !returnedIds.has(id))) {
@@ -193,6 +205,7 @@ export function registerMessageCommands(program: Command): void {
     ) => {
       await runQuery('messages.search', options, async (format) => {
         assertRawFormatCompatible(format, options)
+        const searchKeywords = parseSearchKeywords(keywords)
         if (options.match !== 'any' && options.match !== 'all') {
           throw new QueryError({
             code: 'INVALID_ARGUMENT',
@@ -220,7 +233,7 @@ export function registerMessageCommands(program: Command): void {
           const fingerprint = queryFingerprint({
             command: 'messages.search',
             session: ctx.session.id,
-            keywords,
+            keywords: searchKeywords,
             match: options.match,
             sort: options.sort,
             startTs: time.startTs ?? null,
@@ -230,7 +243,7 @@ export function registerMessageCommands(program: Command): void {
           })
           const offset = options.cursor ? decodeCursor(options.cursor, fingerprint) : 0
 
-          const result = searchMessagesByKeywords(ctx.db, keywords, {
+          const result = searchMessagesByKeywords(ctx.db, searchKeywords, {
             startTs: time.startTs,
             endTs: time.endTs,
             senderId: member?.id,
@@ -276,7 +289,7 @@ export function registerMessageCommands(program: Command): void {
           const meta: Record<string, unknown> = {
             session: ctx.session,
             timeRange: time.meta,
-            query: { keywords, match: options.match, engine: 'like', sort: options.sort, context },
+            query: { keywords: searchKeywords, match: options.match, engine: 'like', sort: options.sort, context },
             ...(member ? { member } : {}),
             totalHits: total,
             returnedHits: hits.length,

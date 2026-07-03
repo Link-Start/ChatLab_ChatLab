@@ -244,6 +244,24 @@ describe('high-risk analysis tool definitions', () => {
     assert.equal((result.data as { contextSize: number }).contextSize, 1)
   })
 
+  it('get_message_context clamps negative context_size before applying maxMessagesLimit', async () => {
+    const calls: Array<{ ids: number[]; contextSize: number }> = []
+    const context = createContext(
+      {
+        async getMessageContext(ids, contextSize) {
+          calls.push({ ids, contextSize })
+          return [{ id: 10, senderName: 'Alice', content: 'hit', timestamp: 1710000001 }]
+        },
+      },
+      { maxMessagesLimit: 12 }
+    )
+
+    const result = await getMessageContextTool.handler({ message_ids: [10], context_size: -1 }, context)
+
+    assert.deepEqual(calls, [{ ids: [10], contextSize: 0 }])
+    assert.equal((result.data as { contextSize: number }).contextSize, 0)
+  })
+
   it('get_segment_summaries filters empty and non-matching summaries after over-fetching', async () => {
     const calls: Array<{ limit?: number; timeFilter?: ToolTimeRange }> = []
     const contextFilter: ToolTimeRange = { startTs: 1704067200, endTs: 1704153600 }
