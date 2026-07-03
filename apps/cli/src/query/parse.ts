@@ -43,6 +43,7 @@ export function epochToIso(ts: number): string {
 
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/
 const DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/
+const ISO_DATE_PREFIX = /^(\d{4})-(\d{2})-(\d{2})T/
 const LAST_DURATION = /^(\d+)([hdw])$/
 
 function startOfDay(base: Date, dayOffset = 0): Date {
@@ -55,6 +56,14 @@ function invalidTime(flag: string, value: string): QueryError {
     message: `Invalid ${flag} value: ${value}`,
     hint: 'Use YYYY-MM-DD, "YYYY-MM-DD HH:mm", ISO 8601, or the keywords today/yesterday',
   })
+}
+
+function isSameLocalDate(date: Date, y: number, m: number, d: number): boolean {
+  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d
+}
+
+function isSameLocalDateTime(date: Date, y: number, m: number, d: number, h: number, min: number, s: number): boolean {
+  return isSameLocalDate(date, y, m, d) && date.getHours() === h && date.getMinutes() === min && date.getSeconds() === s
 }
 
 /**
@@ -71,23 +80,43 @@ function parseTimeValue(value: string, boundary: 'start' | 'end', flag: string, 
   const dateOnly = DATE_ONLY.exec(value)
   if (dateOnly) {
     const [, y, m, d] = dateOnly
-    const base = new Date(Number(y), Number(m) - 1, Number(d))
-    if (Number.isNaN(base.getTime())) throw invalidTime(flag, value)
+    const year = Number(y)
+    const month = Number(m)
+    const day = Number(d)
+    const base = new Date(year, month - 1, day)
+    if (Number.isNaN(base.getTime()) || !isSameLocalDate(base, year, month, day)) throw invalidTime(flag, value)
     if (boundary === 'start') return base
-    return new Date(new Date(Number(y), Number(m) - 1, Number(d) + 1).getTime() - 1000)
+    return new Date(new Date(year, month - 1, day + 1).getTime() - 1000)
   }
 
   const dateTime = DATE_TIME.exec(value)
   if (dateTime) {
     const [, y, m, d, h, min, s] = dateTime
-    const parsed = new Date(Number(y), Number(m) - 1, Number(d), Number(h), Number(min), Number(s ?? 0))
-    if (Number.isNaN(parsed.getTime())) throw invalidTime(flag, value)
+    const year = Number(y)
+    const month = Number(m)
+    const day = Number(d)
+    const hour = Number(h)
+    const minute = Number(min)
+    const second = Number(s ?? 0)
+    const parsed = new Date(year, month - 1, day, hour, minute, second)
+    if (Number.isNaN(parsed.getTime()) || !isSameLocalDateTime(parsed, year, month, day, hour, minute, second)) {
+      throw invalidTime(flag, value)
+    }
     return parsed
   }
 
   // full ISO 8601 (with timezone offset or Z)
   const parsed = new Date(value)
   if (!Number.isNaN(parsed.getTime()) && /\d{4}-\d{2}-\d{2}T/.test(value)) {
+    const isoDate = ISO_DATE_PREFIX.exec(value)
+    if (isoDate) {
+      const [, y, m, d] = isoDate
+      const year = Number(y)
+      const month = Number(m)
+      const day = Number(d)
+      const localDate = new Date(year, month - 1, day)
+      if (!isSameLocalDate(localDate, year, month, day)) throw invalidTime(flag, value)
+    }
     return parsed
   }
 
@@ -161,15 +190,19 @@ export function parseLimit(
   value: string | number | undefined,
   defaultValue: number,
   cap: number,
-  flag: string
+  flag: string,
+  min = 0
 ): number {
   if (value === undefined) return Math.min(defaultValue, cap)
   const n = typeof value === 'number' ? value : Number(value)
-  if (!Number.isInteger(n) || n < 0) {
+  if (!Number.isInteger(n) || n < min) {
     throw new QueryError({
       code: 'INVALID_ARGUMENT',
       message: `Invalid ${flag} value: ${value}`,
-      hint: `${flag} must be a non-negative integer (max ${cap})`,
+      hint:
+        min > 0
+          ? `${flag} must be an integer from ${min} to ${cap}`
+          : `${flag} must be a non-negative integer (max ${cap})`,
     })
   }
   return Math.min(n, cap)

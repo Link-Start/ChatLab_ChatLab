@@ -72,7 +72,7 @@ export function registerMessageCommands(program: Command): void {
         assertRawAllowed(ctx, options)
         const time = parseTimeOptions(options)
         const member = options.member ? resolveMember(ctx.db, options.member) : undefined
-        const limit = parseLimit(options.limit, 50, 500, '--limit')
+        const limit = parseLimit(options.limit, 50, 500, '--limit', 1)
         const excludeKeywords = options.raw ? undefined : ctx.preprocessConfig.blacklistKeywords
 
         const fingerprint = queryFingerprint({
@@ -161,7 +161,7 @@ export function registerMessageCommands(program: Command): void {
           assertRawAllowed(ctx, options)
           const time = parseTimeOptions(options)
           const member = options.member ? resolveMember(ctx.db, options.member) : undefined
-          const limit = parseLimit(options.limit, 20, 500, '--limit')
+          const limit = parseLimit(options.limit, 20, 500, '--limit', 1)
           const context = parseLimit(options.context, 0, 50, '--context')
           const maxMessages = parseLimit(options.maxMessages, 200, 2000, '--max-messages')
           const excludeKeywords = options.raw ? undefined : ctx.preprocessConfig.blacklistKeywords
@@ -315,7 +315,7 @@ export function registerMessageCommands(program: Command): void {
         const time = parseTimeOptions(options)
         const memberA = resolveMember(ctx.db, options.member[0])
         const memberB = resolveMember(ctx.db, options.member[1])
-        const limit = parseLimit(options.limit, 50, 500, '--limit')
+        const limit = parseLimit(options.limit, 50, 500, '--limit', 1)
         const excludeKeywords = options.raw ? undefined : ctx.preprocessConfig.blacklistKeywords
 
         const fingerprint = queryFingerprint({
