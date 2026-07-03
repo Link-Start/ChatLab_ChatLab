@@ -13,6 +13,7 @@ const [{ setConfigField, ConfigSetError }, { loadConfig }] = await Promise.all([
 ])
 
 const configToml = join(tempHome, '.chatlab', 'config.toml')
+const configJson = join(tempHome, '.chatlab', 'config.json')
 
 beforeEach(() => {
   rmSync(join(tempHome, '.chatlab'), { recursive: true, force: true })
@@ -55,6 +56,25 @@ describe('setConfigField', () => {
   it('parses number values by schema type', () => {
     setConfigField('api.port', '8080')
     assert.equal(loadConfig().api.port, 8080)
+  })
+
+  it('preserves legacy JSON config when creating TOML', () => {
+    mkdirSync(join(tempHome, '.chatlab'), { recursive: true })
+    writeFileSync(
+      configJson,
+      JSON.stringify({
+        data: { user_data_dir: '/tmp/chatlab-legacy-data' },
+        api: { host: '0.0.0.0' },
+      }),
+      'utf-8'
+    )
+
+    setConfigField('cli.allow_raw', 'true')
+
+    const config = loadConfig()
+    assert.equal(config.cli.allow_raw, true)
+    assert.equal(config.data.user_data_dir, '/tmp/chatlab-legacy-data')
+    assert.equal(config.api.host, '0.0.0.0')
   })
 
   it('rejects unknown section or key without touching the file', () => {
