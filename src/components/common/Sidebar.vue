@@ -4,6 +4,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { shouldEnableContactsEntry } from '@openchatlab/core'
 import type { AnalysisSession } from '@/types/base'
 import LazyAvatar from '@/components/common/avatar/LazyAvatar.vue'
 import SidebarButton from './sidebar/SidebarButton.vue'
@@ -34,7 +35,6 @@ const { isSidebarCollapsed: isCollapsed } = storeToRefs(layoutStore)
 const { toggleSidebar } = layoutStore
 const router = useRouter()
 const route = useRoute()
-const CONTACTS_PRIVATE_SESSION_THRESHOLD = 10
 const SESSION_ROW_SIZE = 44
 const SESSION_LIST_BOTTOM_PADDING = 32
 
@@ -42,7 +42,13 @@ const SESSION_LIST_BOTTOM_PADDING = 32
 const isHomePage = computed(() => route.path === '/')
 const isPeoplePage = computed(() => String(route.name ?? '').startsWith('people-'))
 const privateSessionCount = computed(() => sessions.value.filter((session) => session.type === 'private').length)
-const showContactsEntry = computed(() => privateSessionCount.value > CONTACTS_PRIVATE_SESSION_THRESHOLD)
+const groupSessionCount = computed(() => sessions.value.filter((session) => session.type === 'group').length)
+const showContactsEntry = computed(() =>
+  shouldEnableContactsEntry({
+    privateSessionCount: privateSessionCount.value,
+    groupSessionCount: groupSessionCount.value,
+  })
+)
 
 // 重命名相关状态
 const showRenameModal = ref(false)

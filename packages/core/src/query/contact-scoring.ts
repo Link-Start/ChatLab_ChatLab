@@ -1,7 +1,5 @@
 import type { ContactScoreBreakdown } from '@openchatlab/shared-types'
 
-export const MIN_PRIVATE_SESSIONS_FOR_CONTACTS = 10
-
 const FRIEND_SCORE_WEIGHTS = {
   privateMessage: 0.55,
   privateRegularity: 0.25,

@@ -3,7 +3,7 @@ import { mock, test } from 'node:test'
 
 test('treats a loadable native module without NativeParser as unavailable', async () => {
   await mock.module('@openchatlab/parser-native', {
-    exports: {
+    namedExports: {
       WeflowParser: class WeflowParser {},
     },
   })

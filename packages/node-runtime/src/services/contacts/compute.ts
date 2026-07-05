@@ -8,7 +8,6 @@ import type {
   ContactSourceSession,
 } from '@openchatlab/shared-types'
 import {
-  MIN_PRIVATE_SESSIONS_FOR_CONTACTS,
   computeFriendScores,
   computeNonFriendScores,
   getGroupContactFacts,
@@ -18,6 +17,7 @@ import {
   isChatSessionDb,
   isNameMatchPlatform,
   resolveOwnerMember,
+  shouldEnableContactsEntry,
 } from '@openchatlab/core'
 import type { ContactMemberRef, SessionMeta } from '@openchatlab/core'
 import { getDbFileVersion } from '../../cache/analytics-cache'
@@ -151,12 +151,13 @@ function computeContacts(options: {
   const diagnostics = createEmptyDiagnostics()
   const accumulators = new Map<string, ContactAccumulator>()
   let processedSessions = 0
+  let activeGroupSessionCount = 0
 
   for (const sessionId of options.sessionIds) {
     options.onProgress?.({ processedSessions, totalSessions: options.sessionIds.length, currentSessionId: sessionId })
     try {
       const facts = getSessionFacts(options.adapter, sessionId, options.timeRange, options.factsCache)
-      applySessionFacts(accumulators, diagnostics, sessionId, facts)
+      if (applySessionFacts(accumulators, diagnostics, sessionId, facts)) activeGroupSessionCount++
     } catch (error) {
       diagnostics.skippedFailedSessions++
       appLogger.error('contacts', `failed to process contact session: ${sessionId}`, error)
@@ -166,7 +167,10 @@ function computeContacts(options: {
     }
   }
 
-  diagnostics.contactsEnabled = diagnostics.activePrivateSessionCount > MIN_PRIVATE_SESSIONS_FOR_CONTACTS
+  diagnostics.contactsEnabled = shouldEnableContactsEntry({
+    privateSessionCount: diagnostics.activePrivateSessionCount,
+    groupSessionCount: activeGroupSessionCount,
+  })
   const contacts = buildContactItems([...accumulators.values()])
   return { contacts, diagnostics }
 }
@@ -251,27 +255,27 @@ function applySessionFacts(
   diagnostics: ContactsDiagnostics,
   sessionId: string,
   sessionFacts: ContactsSessionFacts
-): void {
+): boolean {
   if ('meta' in sessionFacts && sessionFacts.meta.type === ChatType.PRIVATE) diagnostics.privateSessionCount++
 
   switch (sessionFacts.kind) {
     case 'missing_owner':
       diagnostics.skippedMissingOwnerSessions++
-      return
+      return false
     case 'unresolved_owner':
       diagnostics.skippedUnresolvedOwnerSessions++
-      return
+      return false
     case 'private_ambiguous':
       diagnostics.skippedAmbiguousPrivateSessions++
-      return
+      return false
     case 'private':
       applyPrivateFacts(accumulators, diagnostics, sessionId, sessionFacts.meta, sessionFacts.facts)
-      return
+      return false
     case 'group':
       applyGroupFacts(accumulators, sessionId, sessionFacts.meta, sessionFacts.facts)
-      return
+      return true
     default:
-      return
+      return false
   }
 }
 

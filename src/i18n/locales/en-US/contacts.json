@@ -1,7 +1,7 @@
 {
   "title": "Contacts",
   "subtitle": "{count} private chats imported",
-  "disabled": "Current active private chat count in this range is {count}. The sidebar entry appears after more than 10 active private chats.",
+  "disabled": "Current active private chat count in this range is {count}. Contacts are enabled after importing at least 1 group chat, or once active private chats reach 5.",
   "empty": "No matching contacts",
   "emptyValue": "None",
   "search": "Search contacts",

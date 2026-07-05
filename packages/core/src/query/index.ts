@@ -95,7 +95,13 @@ export type {
 } from './contact-queries'
 
 export {
+  MIN_GROUP_SESSIONS_FOR_CONTACTS,
   MIN_PRIVATE_SESSIONS_FOR_CONTACTS,
+  shouldEnableContactsEntry,
+} from './contact-enablement'
+export type { ContactsEntryEnablementInput } from './contact-enablement'
+
+export {
   computeFriendScore,
   computeFriendScores,
   computeNonFriendScore,

@@ -237,7 +237,7 @@ test('aggregates stable-id contacts across private and group sessions', (t) => {
   assert.equal(bob.sourceSessions.length, 1)
 
   assert.equal(result.diagnostics.privateSessionCount, 2)
-  assert.equal(result.diagnostics.contactsEnabled, false)
+  assert.equal(result.diagnostics.contactsEnabled, true)
 })
 
 test('records diagnostics for missing owner, unresolved owner, and ambiguous private sessions', (t) => {
