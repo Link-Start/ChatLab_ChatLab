@@ -62,6 +62,7 @@ test('exports JSON as ChatLab format that can be parsed for re-import', async ()
     const exported = JSON.parse(result.content)
     assert.equal(exported.chatlab.version, '0.0.2')
     assert.equal(exported.meta.ownerId, 'alice')
+    assert.equal(exported.meta.sourceSessionId, 'session-1')
     assert.deepEqual(exported.members[0].aliases, ['Alice'])
     assert.deepEqual(
       exported.messages.map((message: { timestamp: number }) => message.timestamp),
@@ -87,6 +88,7 @@ test('exports JSON as ChatLab format that can be parsed for re-import', async ()
       groupId: 'group-1',
       groupAvatar: 'group-avatar',
       ownerId: 'alice',
+      sourceSessionId: 'session-1',
     })
     assert.deepEqual(
       parsed.members.map((member) => ({

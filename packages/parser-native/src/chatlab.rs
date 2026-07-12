@@ -29,6 +29,7 @@ struct ChatlabMeta {
     group_id: Option<String>,
     group_avatar: Option<String>,
     owner_id: Option<String>,
+    source_session_id: Option<String>,
     /// true: members came from the top-level `members` array (full shape);
     /// false: collected from messages (id/name/nickname only), as in TS.
     members_from_head: bool,
@@ -87,6 +88,7 @@ struct MetaOut {
     group_id: Option<String>,
     group_avatar: Option<String>,
     owner_id: Option<String>,
+    source_session_id: Option<String>,
 }
 
 fn parse_meta(meta_raw: Option<&[u8]>, file_path: &str) -> ScanResult<MetaOut> {
@@ -139,6 +141,7 @@ fn parse_meta(meta_raw: Option<&[u8]>, file_path: &str) -> ScanResult<MetaOut> {
     let group_id = optional_str(&meta, "groupId", "meta")?;
     let group_avatar = optional_str(&meta, "groupAvatar", "meta")?;
     let owner_id = optional_str(&meta, "ownerId", "meta")?;
+    let source_session_id = optional_str(&meta, "sourceSessionId", "meta")?;
 
     // Filename fallback fires whenever the name resolved to the default,
     // mirroring `if (meta.name === '未知群聊')` in the TS parser.
@@ -153,6 +156,7 @@ fn parse_meta(meta_raw: Option<&[u8]>, file_path: &str) -> ScanResult<MetaOut> {
         group_id,
         group_avatar,
         owner_id,
+        source_session_id,
     })
 }
 
@@ -379,6 +383,7 @@ pub fn parse_chatlab(
         group_id: meta.group_id,
         group_avatar: meta.group_avatar,
         owner_id: meta.owner_id,
+        source_session_id: meta.source_session_id,
         members_from_head,
     })
     .map_err(|err| strict(format!("meta serialization failed: {err}")))?;
@@ -410,7 +415,7 @@ mod tests {
     fn parses_full_document() {
         let doc = r#"{
       "chatlab": {"version": "0.0.2", "exportedAt": 1700000000},
-      "meta": {"name": "测试群", "platform": "weixin", "type": "group", "groupId": "g1@chatroom", "groupAvatar": "https://x/y.jpg", "ownerId": "u1"},
+      "meta": {"name": "测试群", "platform": "weixin", "type": "group", "groupId": "g1@chatroom", "groupAvatar": "https://x/y.jpg", "ownerId": "u1", "sourceSessionId": "source-session"},
       "members": [
         {"platformId": "u1", "accountName": "Alice", "groupNickname": "小A", "aliases": ["Ally"], "avatar": "https://a", "roles": [{"id": "owner"}, {"id": "admin", "name": "管理"}]},
         {"platformId": "u2", "accountName": "Bob"}
@@ -428,6 +433,7 @@ mod tests {
         assert_eq!(m["chatType"], "group");
         assert_eq!(m["groupId"], "g1@chatroom");
         assert_eq!(m["ownerId"], "u1");
+        assert_eq!(m["sourceSessionId"], "source-session");
         assert_eq!(m["membersFromHead"], true);
         assert_eq!(out.members.len(), 2);
         assert_eq!(

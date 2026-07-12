@@ -37,6 +37,7 @@ export interface ChatLabMeta {
   groupId?: string // 群ID（可选，仅群聊）
   groupAvatar?: string // 群头像（base64 Data URL，可选）
   ownerId?: string // 所有者/导出者的 platformId（可选）
+  sourceSessionId?: string // ChatLab 导出来源会话 ID（可选）
 }
 
 /**

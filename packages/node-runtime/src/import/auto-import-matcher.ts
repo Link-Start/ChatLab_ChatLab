@@ -6,7 +6,7 @@ import type { ImportProgressCallback } from './streaming-importer'
 
 const MATCH_WINDOW_SIZE = 5
 
-export type AutoImportMatchMethod = 'stable-id' | 'trailing-messages'
+export type AutoImportMatchMethod = 'source-session-id' | 'stable-id' | 'trailing-messages'
 
 export type AutoImportDecision =
   | { action: 'incremental'; sessionId: string; matchedBy: AutoImportMatchMethod }
@@ -137,10 +137,16 @@ export async function resolveAutoImportTarget(
   }
 
   if (hasStableIdentity) {
+    if (meta.sourceSessionId && stableMatches.includes(meta.sourceSessionId)) {
+      return { action: 'incremental', sessionId: meta.sourceSessionId, matchedBy: 'source-session-id' }
+    }
     if (stableMatches.length === 1) {
       return { action: 'incremental', sessionId: stableMatches[0], matchedBy: 'stable-id' }
     }
     return { action: 'create', reason: stableMatches.length > 1 ? 'ambiguous' : 'no-match' }
+  }
+  if (meta.sourceSessionId && trailingMatches.includes(meta.sourceSessionId)) {
+    return { action: 'incremental', sessionId: meta.sourceSessionId, matchedBy: 'source-session-id' }
   }
   if (trailingMatches.length === 1) {
     return { action: 'incremental', sessionId: trailingMatches[0], matchedBy: 'trailing-messages' }
