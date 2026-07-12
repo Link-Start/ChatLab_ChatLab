@@ -113,7 +113,7 @@ function isDuplicate(
   return false
 }
 
-function normalizeTimestamp(timestamp: unknown): number | null {
+export function normalizeImportTimestamp(timestamp: unknown): number | null {
   const value = typeof timestamp === 'string' && timestamp.trim() !== '' ? Number(timestamp) : timestamp
   return typeof value === 'number' && value > 0 && Number.isFinite(value) ? value : null
 }
@@ -153,7 +153,7 @@ export async function analyzeIncrementalImport(
     onMessageBatch: (batch) => {
       for (const msg of batch) {
         totalInFile++
-        const timestamp = normalizeTimestamp(msg.timestamp)
+        const timestamp = normalizeImportTimestamp(msg.timestamp)
         if (timestamp === null) continue
 
         if (isDuplicate({ ...msg, timestamp }, existingPlatformMsgIds, existingKeys)) {
@@ -311,7 +311,7 @@ export async function incrementalImport(
             trackError(processedCount, 'MISSING_TIMESTAMP', 'timestamp field is missing')
             continue
           }
-          const timestamp = normalizeTimestamp(msg.timestamp)
+          const timestamp = normalizeImportTimestamp(msg.timestamp)
           if (timestamp === null) {
             trackError(processedCount, 'INVALID_TIMESTAMP', `timestamp value: ${msg.timestamp}`)
             continue
