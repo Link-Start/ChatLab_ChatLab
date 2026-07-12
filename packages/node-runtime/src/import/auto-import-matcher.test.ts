@@ -32,13 +32,14 @@ function writeChatLabJsonl(
   filePath: string,
   meta: SourceMeta,
   members: SourceMember[],
-  messages: ParsedMessage[]
+  messages: ParsedMessage[],
+  sourceSessionId?: string
 ): void {
   const lines = [
     {
       _type: 'header',
       chatlab: { version: '0.0.2', exportedAt: 1783840000 },
-      meta,
+      meta: { ...meta, sourceSessionId },
     },
     ...members.map((member) => ({ _type: 'member', ...member })),
     ...messages.map((message) => ({
@@ -168,6 +169,77 @@ test('matches a unique private session by stable owner and participant ids', asy
       sessionId: 'private-existing',
       matchedBy: 'stable-id',
     }
+  )
+})
+
+test('uses a validated ChatLab source session id to disambiguate stable matches', async (t) => {
+  const tempDir = makeTempDir()
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+
+  const meta: SourceMeta = {
+    name: 'Private chat',
+    platform: 'wechat',
+    type: 'private',
+    ownerId: 'owner',
+  }
+  const members = [
+    { platformId: 'owner', accountName: 'Owner' },
+    { platformId: 'peer', accountName: 'Peer' },
+  ]
+  const messages = [textMessage('peer', 1783860000, 'hello')]
+
+  seedSession(path.join(tempDir, 'source-session.db'), meta, members, messages)
+  seedSession(path.join(tempDir, 'duplicate-session.db'), meta, members, messages)
+  writeChatLabJsonl(path.join(tempDir, 'source.jsonl'), meta, members, messages, 'source-session')
+
+  assert.deepEqual(
+    await resolveAutoImportTarget(
+      path.join(tempDir, 'source.jsonl'),
+      createDeps(tempDir, ['source-session', 'duplicate-session'])
+    ),
+    {
+      action: 'incremental',
+      sessionId: 'source-session',
+      matchedBy: 'source-session-id',
+    }
+  )
+})
+
+test('does not trust a ChatLab source session id that fails identity validation', async (t) => {
+  const tempDir = makeTempDir()
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+
+  const sourceMeta: SourceMeta = {
+    name: 'Private chat',
+    platform: 'wechat',
+    type: 'private',
+    ownerId: 'owner',
+  }
+  const sourceMembers = [
+    { platformId: 'owner', accountName: 'Owner' },
+    { platformId: 'peer', accountName: 'Peer' },
+  ]
+  const messages = [textMessage('peer', 1783860000, 'hello')]
+
+  seedSession(path.join(tempDir, 'matching-a.db'), sourceMeta, sourceMembers, messages)
+  seedSession(path.join(tempDir, 'matching-b.db'), sourceMeta, sourceMembers, messages)
+  seedSession(
+    path.join(tempDir, 'unrelated.db'),
+    { ...sourceMeta, ownerId: 'different-owner' },
+    [
+      { platformId: 'different-owner', accountName: 'Other owner' },
+      { platformId: 'different-peer', accountName: 'Other peer' },
+    ],
+    [textMessage('different-peer', 1783860000, 'hello')]
+  )
+  writeChatLabJsonl(path.join(tempDir, 'source.jsonl'), sourceMeta, sourceMembers, messages, 'unrelated')
+
+  assert.deepEqual(
+    await resolveAutoImportTarget(
+      path.join(tempDir, 'source.jsonl'),
+      createDeps(tempDir, ['matching-a', 'matching-b', 'unrelated'])
+    ),
+    { action: 'create', reason: 'ambiguous' }
   )
 })
 

@@ -17,6 +17,7 @@ export interface ParsedMeta {
   groupId?: string // 群ID（群聊类型有值）
   groupAvatar?: string // 群头像（base64 Data URL）
   ownerId?: string // 所有者/导出者的 platformId
+  sourceSessionId?: string // ChatLab 导出来源会话 ID，仅用于安全消歧
 }
 
 /**

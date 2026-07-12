@@ -49,6 +49,7 @@ interface JsonlHeader {
     groupId?: string
     groupAvatar?: string
     ownerId?: string
+    sourceSessionId?: string
   }
 }
 
@@ -171,6 +172,7 @@ async function* parseChatLabJsonl(options: ParseOptions): AsyncGenerator<ParseEv
             groupId: parsed.meta.groupId,
             groupAvatar: parsed.meta.groupAvatar,
             ownerId: parsed.meta.ownerId,
+            sourceSessionId: parsed.meta.sourceSessionId,
           }
           headerParsed = true
           yield { type: 'meta', data: meta }

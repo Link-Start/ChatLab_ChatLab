@@ -21,6 +21,7 @@ interface ChatlabMetaJson {
   groupId: string | null
   groupAvatar: string | null
   ownerId: string | null
+  sourceSessionId: string | null
   /**
    * true when members came from the top-level `members` array;
    * false when collected from messages (TS emits different object shapes).
@@ -62,6 +63,7 @@ const chatlabAdapter: NativeFormatAdapter = {
       groupId: meta.groupId ?? undefined,
       groupAvatar: meta.groupAvatar ?? undefined,
       ownerId: meta.ownerId ?? undefined,
+      sourceSessionId: meta.sourceSessionId ?? undefined,
     }
   },
 

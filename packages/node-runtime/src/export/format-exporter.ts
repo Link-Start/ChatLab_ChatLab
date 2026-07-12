@@ -106,7 +106,12 @@ function parseOptionalArray<T>(value: string | null): T[] | undefined {
   }
 }
 
-function exportAsJson(db: DatabaseAdapter, messages: MessageRow[], sessionName: string): string {
+function exportAsJson(
+  db: DatabaseAdapter,
+  messages: MessageRow[],
+  sessionName: string,
+  sourceSessionId: string
+): string {
   const meta = db
     .prepare(
       `SELECT name,
@@ -147,6 +152,7 @@ function exportAsJson(db: DatabaseAdapter, messages: MessageRow[], sessionName: 
       groupId: meta.groupId || undefined,
       groupAvatar: meta.groupAvatar || undefined,
       ownerId: meta.ownerId || undefined,
+      sourceSessionId,
     },
     members: members.map((member) => ({
       platformId: member.platformId,
@@ -219,7 +225,7 @@ export function exportWithFormat(
         content = exportAsTxt(messages, params.sessionName)
         break
       case 'json':
-        content = exportAsJson(db, messages, params.sessionName)
+        content = exportAsJson(db, messages, params.sessionName, params.sessionId)
         break
       case 'markdown':
         content = exportAsMarkdown(messages, params.sessionName)

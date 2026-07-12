@@ -12,7 +12,7 @@ interface ChatImportResult {
   sessionId?: string
   error?: string
   importMode?: 'created' | 'incremental'
-  matchedBy?: 'stable-id' | 'trailing-messages'
+  matchedBy?: 'source-session-id' | 'stable-id' | 'trailing-messages'
   newMessageCount?: number
   duplicateCount?: number
   diagnostics?: {

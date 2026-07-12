@@ -17,7 +17,7 @@ export interface ImportOptions {
 // ==================== 导入结果 ====================
 
 export type AutoImportMode = 'created' | 'incremental'
-export type AutoImportMatchMethod = 'stable-id' | 'trailing-messages'
+export type AutoImportMatchMethod = 'source-session-id' | 'stable-id' | 'trailing-messages'
 
 export interface ImportResult {
   success: boolean

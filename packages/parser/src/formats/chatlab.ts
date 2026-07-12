@@ -141,6 +141,7 @@ async function* parseChatLab(options: ParseOptions): AsyncGenerator<ParseEvent, 
           groupId: metaObj.groupId,
           groupAvatar: metaObj.groupAvatar,
           ownerId: metaObj.ownerId,
+          sourceSessionId: metaObj.sourceSessionId,
         }
       }
     }

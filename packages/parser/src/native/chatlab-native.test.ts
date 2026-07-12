@@ -84,6 +84,7 @@ const CANONICAL_FIXTURE = {
     groupId: 'g1@chatroom',
     groupAvatar: 'https://example.com/g.jpg',
     ownerId: 'u1',
+    sourceSessionId: 'source-session',
   },
   members: [
     {
@@ -130,6 +131,7 @@ describe('chatlab native parser parity', { skip: !nativeAvailable() && 'native m
     assert.equal(nativeResult.meta.platform, 'weixin')
     assert.equal(nativeResult.meta.groupId, 'g1@chatroom')
     assert.equal(nativeResult.meta.ownerId, 'u1')
+    assert.equal(nativeResult.meta.sourceSessionId, 'source-session')
     assert.equal(nativeResult.members.length, 2)
     assert.deepEqual(nativeResult.members[0].aliases, ['Ally'])
     assert.equal(nativeResult.members[0].avatar, 'https://example.com/a.jpg')
