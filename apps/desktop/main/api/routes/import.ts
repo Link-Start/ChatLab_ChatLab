@@ -33,6 +33,7 @@ import {
   errorResponse,
 } from '../errors'
 import { apiLogger } from '../logger'
+import { apiErrorFromImportResult, batchFromStreamDiagnostics } from './import-helpers'
 
 // Per-session lock: different sessionIds can import in parallel.
 const isImporting = new Set<string>()
@@ -280,7 +281,7 @@ async function handleUnifiedImport(request: FastifyRequest, reply: FastifyReply,
         reply.send(responsePayload)
       } else {
         idempotencyFail(cacheKey)
-        const err = importFailed(result.error || 'Incremental import failed')
+        const err = apiErrorFromImportResult(result.error, 'Incremental import failed')
         reply.code(err.statusCode).send(errorResponse(err))
       }
     } else {
@@ -308,20 +309,14 @@ async function handleUnifiedImport(request: FastifyRequest, reply: FastifyReply,
         const responsePayload = successResponse({
           sessionId: result.sessionId,
           created: true,
-          batch: diag
-            ? {
-                receivedCount: diag.messagesReceived,
-                writtenCount: diag.messagesWritten,
-                duplicateCount: diag.messagesSkipped,
-              }
-            : undefined,
+          batch: batchFromStreamDiagnostics(diag),
           session: sessionInfo,
         })
         idempotencySuccess(cacheKey, responsePayload)
         reply.send(responsePayload)
       } else {
         idempotencyFail(cacheKey)
-        const err = importFailed(result.error || 'Import failed')
+        const err = apiErrorFromImportResult(result.error, 'Import failed')
         reply.code(err.statusCode).send(errorResponse(err))
       }
     }
@@ -401,7 +396,7 @@ async function handleLegacyImport(request: FastifyRequest, reply: FastifyReply, 
           })
         )
       } else {
-        const err = importFailed(result.error || 'Incremental import failed')
+        const err = apiErrorFromImportResult(result.error, 'Incremental import failed')
         reply.code(err.statusCode).send(errorResponse(err))
       }
     } else {
@@ -416,7 +411,7 @@ async function handleLegacyImport(request: FastifyRequest, reply: FastifyReply, 
           })
         )
       } else {
-        const err = importFailed(result.error || 'Import failed')
+        const err = apiErrorFromImportResult(result.error, 'Import failed')
         reply.code(err.statusCode).send(errorResponse(err))
       }
     }
