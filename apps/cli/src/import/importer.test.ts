@@ -4,7 +4,13 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import type { PathProvider } from '@openchatlab/core'
-import { DatabaseManager, raiseDataDirMinRuntimeVersion, readDataDirCompatibilityMeta } from '@openchatlab/node-runtime'
+import {
+  DatabaseManager,
+  IMPORT_IN_PROGRESS_ERROR_KEY,
+  raiseDataDirMinRuntimeVersion,
+  readDataDirCompatibilityMeta,
+  withDataDirImportLock,
+} from '@openchatlab/node-runtime'
 import { autoImport, streamImport } from './stream-import'
 
 const nativeBinding = path.resolve('apps/cli/native/better_sqlite3.node')
@@ -40,6 +46,21 @@ function writeTempChatFile(dir: string): string {
       members: [{ platformId: 'u1', accountName: 'Alice' }],
       // accountName is required by streaming-importer (skipped otherwise)
       messages: [{ sender: 'u1', accountName: 'Alice', timestamp: 1711468800, type: 0, content: 'hello' }],
+    })
+  )
+  return filePath
+}
+
+function writeTempDuplicateChatFile(dir: string): string {
+  const filePath = path.join(dir, 'duplicate-chat.json')
+  const message = { sender: 'u1', accountName: 'Alice', timestamp: 1711468800, type: 0, content: 'hello' }
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify({
+      chatlab: { version: '0.0.2', exportedAt: 1711468800 },
+      meta: { name: 'Duplicate Chat', platform: 'qq', type: 'group', groupId: 'duplicate-group' },
+      members: [{ platformId: 'u1', accountName: 'Alice' }],
+      messages: [message, { ...message }],
     })
   )
   return filePath
@@ -115,6 +136,32 @@ test('autoImport creates once and then incrementally imports the same stable cha
   assert.equal(manager.listSessionIds().length, 1)
 })
 
+test('autoImport reports the same exact-message deduplication on create and incremental paths', async (t) => {
+  const root = makeTempDir()
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(root, 'data', 'databases'), { recursive: true })
+  const manager = new DatabaseManager(createPathProvider(root), {
+    nativeBinding,
+    runtime: { version: '0.25.1', kind: 'cli' },
+  })
+  const chatFile = writeTempDuplicateChatFile(root)
+
+  const created = await autoImport(manager, chatFile, { nativeBinding })
+  const incremental = await autoImport(manager, chatFile, { nativeBinding })
+
+  assert.equal(created.success, true)
+  assert.equal(created.newMessageCount, 1)
+  assert.equal(created.duplicateCount, 1)
+  assert.equal(incremental.success, true)
+  assert.equal(incremental.newMessageCount, 0)
+  assert.equal(incremental.duplicateCount, 2)
+
+  const db = manager.openRawSessionDatabase(created.sessionId!, { readonly: true })
+  const row = db.prepare('SELECT COUNT(*) AS count FROM message').get() as { count: number }
+  db.close()
+  assert.equal(row.count, 1)
+})
+
 test('autoImport uses an explicit id for create and then forces incremental import', async () => {
   const root = makeTempDir()
   fs.mkdirSync(path.join(root, 'data', 'databases'), { recursive: true })
@@ -135,4 +182,20 @@ test('autoImport uses an explicit id for create and then forces incremental impo
   assert.equal(incremental.importMode, 'incremental')
   assert.equal(incremental.newMessageCount, 0)
   assert.equal(manager.listSessionIds().length, 1)
+})
+
+test('autoImport rejects a concurrent writer before opening a session database', async (t) => {
+  const root = makeTempDir()
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(root, 'data', 'databases'), { recursive: true })
+  const manager = new DatabaseManager(createPathProvider(root), {
+    nativeBinding,
+    runtime: { version: '0.25.1', kind: 'cli' },
+  })
+  const chatFile = writeTempChatFile(root)
+
+  const result = await withDataDirImportLock(manager.getUserDataDir(), () => autoImport(manager, chatFile))
+
+  assert.deepEqual(result, { success: false, error: IMPORT_IN_PROGRESS_ERROR_KEY })
+  assert.equal(fs.readdirSync(path.join(root, 'data', 'databases')).length, 0)
 })

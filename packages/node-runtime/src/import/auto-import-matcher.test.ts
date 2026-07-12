@@ -172,6 +172,114 @@ test('matches a unique private session by stable owner and participant ids', asy
   )
 })
 
+test('falls back to trailing messages when private stable identity has drifted', async (t) => {
+  const tempDir = makeTempDir()
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+
+  const sourceMeta: SourceMeta = {
+    name: 'Private chat',
+    platform: 'line',
+    type: 'private',
+    ownerId: 'owner',
+  }
+  const candidateMembers = [
+    { platformId: 'owner', accountName: 'Owner' },
+    { platformId: 'peer', accountName: 'Peer' },
+  ]
+  const sourceMembers = [...candidateMembers, { platformId: 'new-device-member', accountName: 'Peer' }]
+  const messages = [
+    textMessage('owner', 1783840151, 'one'),
+    textMessage('peer', 1783840152, 'two'),
+    textMessage('owner', 1783840153, 'three'),
+    textMessage('peer', 1783840154, 'four'),
+    textMessage('owner', 1783840155, 'five'),
+  ]
+
+  seedSession(path.join(tempDir, 'existing.db'), sourceMeta, candidateMembers, messages)
+  const sourcePath = path.join(tempDir, 'source.jsonl')
+  writeChatLabJsonl(sourcePath, sourceMeta, sourceMembers, messages)
+
+  assert.deepEqual(await resolveAutoImportTarget(sourcePath, createDeps(tempDir, ['existing'])), {
+    action: 'incremental',
+    sessionId: 'existing',
+    matchedBy: 'trailing-messages',
+  })
+})
+
+test('prefers a unique stable identity over a different trailing-message candidate', async (t) => {
+  const tempDir = makeTempDir()
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+
+  const sourceMeta: SourceMeta = {
+    name: 'Private chat',
+    platform: 'line',
+    type: 'private',
+    ownerId: 'owner',
+  }
+  const sourceMembers = [
+    { platformId: 'owner', accountName: 'Owner' },
+    { platformId: 'peer', accountName: 'Peer' },
+  ]
+  const messages = [
+    textMessage('owner', 1783840161, 'one'),
+    textMessage('peer', 1783840162, 'two'),
+    textMessage('owner', 1783840163, 'three'),
+    textMessage('peer', 1783840164, 'four'),
+    textMessage('owner', 1783840165, 'five'),
+  ]
+
+  seedSession(path.join(tempDir, 'stable.db'), sourceMeta, sourceMembers, [textMessage('peer', 1, 'old')])
+  seedSession(path.join(tempDir, 'trailing.db'), { ...sourceMeta, ownerId: 'different-owner' }, sourceMembers, messages)
+  const sourcePath = path.join(tempDir, 'source.jsonl')
+  writeChatLabJsonl(sourcePath, sourceMeta, sourceMembers, messages)
+
+  assert.deepEqual(await resolveAutoImportTarget(sourcePath, createDeps(tempDir, ['stable', 'trailing'])), {
+    action: 'incremental',
+    sessionId: 'stable',
+    matchedBy: 'stable-id',
+  })
+})
+
+test('uses a unique trailing overlap to disambiguate multiple stable matches', async (t) => {
+  const tempDir = makeTempDir()
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+
+  const meta: SourceMeta = {
+    name: 'Renamed group',
+    platform: 'qq',
+    type: 'group',
+    groupId: 'group-42',
+  }
+  const members = [{ platformId: 'member', accountName: 'Member' }]
+  const messages = [
+    textMessage('member', 1783840171, 'one'),
+    textMessage('member', 1783840172, 'two'),
+    textMessage('member', 1783840173, 'three'),
+    textMessage('member', 1783840174, 'four'),
+    textMessage('member', 1783840175, 'five'),
+  ]
+
+  seedSession(path.join(tempDir, 'matching-tail.db'), meta, members, messages)
+  seedSession(path.join(tempDir, 'different-tail.db'), meta, members, [
+    textMessage('member', 1, 'other one'),
+    textMessage('member', 2, 'other two'),
+    textMessage('member', 3, 'other three'),
+    textMessage('member', 4, 'other four'),
+    textMessage('member', 5, 'other five'),
+  ])
+  const sourcePath = path.join(tempDir, 'source.jsonl')
+  writeChatLabJsonl(sourcePath, meta, members, messages)
+
+  assert.deepEqual(
+    await resolveAutoImportTarget(sourcePath, createDeps(tempDir, ['matching-tail', 'different-tail'])),
+    {
+      action: 'incremental',
+      sessionId: 'matching-tail',
+      matchedBy: 'trailing-messages',
+    }
+  )
+})
+
 test('uses a validated ChatLab source session id to disambiguate stable matches', async (t) => {
   const tempDir = makeTempDir()
   t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
@@ -394,4 +502,55 @@ test('does not match a candidate with fewer than five business messages', async 
     action: 'create',
     reason: 'no-match',
   })
+})
+
+test('ignores non-chat databases while inspecting Desktop-style candidates', async (t) => {
+  const tempDir = makeTempDir()
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+
+  const meta: SourceMeta = { name: 'LINE chat', platform: 'line', type: 'private' }
+  const members = [{ platformId: 'Alice', accountName: 'Alice' }]
+  const messages = [
+    textMessage('Alice', 1783840701, 'one'),
+    textMessage('Alice', 1783840702, 'two'),
+    textMessage('Alice', 1783840703, 'three'),
+    textMessage('Alice', 1783840704, 'four'),
+    textMessage('Alice', 1783840705, 'five'),
+  ]
+  seedSession(path.join(tempDir, 'existing.db'), meta, members, messages)
+  const unrelatedDb = openBetterSqliteDatabase(path.join(tempDir, 'unrelated.db'), { nativeBinding })
+  unrelatedDb.exec('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)')
+  unrelatedDb.close()
+
+  const sourcePath = path.join(tempDir, 'source.jsonl')
+  writeChatLabJsonl(sourcePath, meta, members, messages)
+
+  assert.deepEqual(await resolveAutoImportTarget(sourcePath, createDeps(tempDir, ['unrelated', 'existing'])), {
+    action: 'incremental',
+    sessionId: 'existing',
+    matchedBy: 'trailing-messages',
+  })
+})
+
+test('reports the candidate session id when a database cannot be inspected', async (t) => {
+  const tempDir = makeTempDir()
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+
+  const sourcePath = path.join(tempDir, 'source.jsonl')
+  writeChatLabJsonl(
+    sourcePath,
+    { name: 'LINE chat', platform: 'line', type: 'private' },
+    [{ platformId: 'Alice', accountName: 'Alice' }],
+    [textMessage('Alice', 1783840801, 'hello')]
+  )
+
+  await assert.rejects(
+    resolveAutoImportTarget(sourcePath, {
+      listSessionIds: () => ['broken-session'],
+      openReadonly: () => {
+        throw new Error('database disk image is malformed')
+      },
+    }),
+    /broken-session.*database disk image is malformed/
+  )
 })

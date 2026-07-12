@@ -13,6 +13,7 @@ interface ChatImportResult {
   error?: string
   importMode?: 'created' | 'incremental'
   matchedBy?: 'source-session-id' | 'stable-id' | 'trailing-messages'
+  createReason?: 'no-match' | 'ambiguous'
   newMessageCount?: number
   duplicateCount?: number
   diagnostics?: {
@@ -20,6 +21,7 @@ interface ChatImportResult {
     detectedFormat: string | null
     messagesReceived: number
     messagesWritten: number
+    duplicateCount: number
     messagesSkipped: number
     skipReasons: { noSenderId: number; noAccountName: number; invalidTimestamp: number; noType: number }
   }

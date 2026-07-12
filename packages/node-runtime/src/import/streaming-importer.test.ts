@@ -89,6 +89,44 @@ function writeChunkedQqExport(root: string): string {
   return manifestPath
 }
 
+function writeDuplicateChatLabExport(root: string): string {
+  const filePath = path.join(root, 'duplicate-chat.json')
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify({
+      chatlab: { version: '0.0.2', exportedAt: 1711468800 },
+      meta: { name: 'Duplicate Test', platform: 'instagram', type: 'private', ownerId: 'owner' },
+      members: [
+        { platformId: 'owner', accountName: 'Owner' },
+        { platformId: 'friend', accountName: 'Friend' },
+      ],
+      messages: [
+        { sender: 'friend', accountName: 'Friend', timestamp: 1711468800, type: 0, content: 'same message' },
+        { sender: 'friend', accountName: 'Friend', timestamp: 1711468800, type: 0, content: 'same message' },
+        { sender: 'friend', accountName: 'Friend', timestamp: 1711468800, type: 1, content: 'same message' },
+        {
+          sender: 'owner',
+          accountName: 'Owner',
+          timestamp: 1711468801,
+          type: 0,
+          content: 'message with id',
+          platformMessageId: 'platform-1',
+        },
+        {
+          sender: 'owner',
+          accountName: 'Owner',
+          timestamp: 1711468801,
+          type: 0,
+          content: 'message with id',
+          platformMessageId: 'platform-1',
+        },
+      ],
+    }),
+    'utf-8'
+  )
+  return filePath
+}
+
 test('streamingImport updates avatars for members first created from message batches', async () => {
   const root = makeTempDir()
   const manifestPath = writeChunkedQqExport(root)
@@ -129,4 +167,46 @@ test('streamingImport updates avatars for members first created from message bat
 
   assert.equal(row?.platform_id, '10001')
   assert.equal(row?.avatar, 'data:image/png;base64,AAAA')
+})
+
+test('streamingImport applies incremental-equivalent deduplication on first import', async (t) => {
+  const root = makeTempDir()
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const filePath = writeDuplicateChatLabExport(root)
+  const dbPath = path.join(root, 'duplicate-test.db')
+
+  const result = await streamingImport(
+    filePath,
+    {
+      openDatabase() {
+        const db = new Database(dbPath, { nativeBinding })
+        db.exec(CHAT_DB_TABLES)
+        return new BetterSqliteAdapter(db)
+      },
+      deleteDatabase() {
+        for (const suffix of ['', '-wal', '-shm']) {
+          try {
+            fs.unlinkSync(dbPath + suffix)
+          } catch {
+            /* ignore */
+          }
+        }
+      },
+      onProgress() {
+        /* noop for this focused importer test */
+      },
+    },
+    undefined,
+    'duplicate-test'
+  )
+
+  assert.equal(result.success, true)
+  assert.equal(result.diagnostics?.messagesReceived, 5)
+  assert.equal(result.diagnostics?.messagesWritten, 3)
+  assert.equal(result.diagnostics?.duplicateCount, 2)
+
+  const db = new Database(dbPath, { readonly: true, nativeBinding })
+  const row = db.prepare('SELECT COUNT(*) AS count FROM message').get() as { count: number }
+  db.close()
+  assert.equal(row.count, 3)
 })

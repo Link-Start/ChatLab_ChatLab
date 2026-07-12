@@ -33,9 +33,20 @@ export type {
   IncrementalImportDeps,
 } from './incremental-importer'
 export { resolveAutoImportTarget } from './auto-import-matcher'
-export type { AutoImportDecision, AutoImportMatcherDeps, AutoImportMatchMethod } from './auto-import-matcher'
+export type {
+  AutoImportCreateReason,
+  AutoImportDecision,
+  AutoImportMatcherDeps,
+  AutoImportMatchMethod,
+} from './auto-import-matcher'
 export { autoImportFile } from './auto-importer'
 export type { AutoImportDeps, AutoImportOptions, AutoImportResult } from './auto-importer'
+export {
+  IMPORT_IN_PROGRESS_ERROR_KEY,
+  IMPORT_LOCK_FILENAME,
+  ImportInProgressError,
+  withDataDirImportLock,
+} from './import-lock'
 export { ZipArchiveReader, validateArchiveEntryName } from './archive/archive-reader'
 export { ArchiveImportError } from './archive/errors'
 export { GoogleChatTakeoutResolver } from './archive/google-chat-resolver'

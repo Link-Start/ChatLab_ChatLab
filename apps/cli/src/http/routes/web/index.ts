@@ -98,6 +98,11 @@ export function registerWebRoutes(
   const cliStreamImport = async (dm: typeof dbManager, filePath: string) => {
     const { streamImport } = await import('../../../import/stream-import')
     const result = await streamImport(dm, filePath)
+    if (!result.success) {
+      const { IMPORT_IN_PROGRESS_ERROR_KEY, ImportInProgressError } = await import('@openchatlab/node-runtime')
+      if (result.error === IMPORT_IN_PROGRESS_ERROR_KEY) throw new ImportInProgressError()
+      throw new Error(result.error || 'Import failed')
+    }
     if (!result.sessionId) throw new Error('Import succeeded but no sessionId returned')
     return { sessionId: result.sessionId }
   }

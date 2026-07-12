@@ -13,6 +13,7 @@ import {
   initAppLogger,
   appLogger,
   getSystemLogsDir,
+  IMPORT_IN_PROGRESS_ERROR_KEY,
   logNativeParserStatus,
 } from '@openchatlab/node-runtime'
 import { getVersion } from './version'
@@ -95,8 +96,12 @@ program
       if (result.success) {
         console.log(`\n\nImport succeeded!`)
         console.log(`  Session ID: ${result.sessionId}`)
-        console.log(`  Mode: ${result.importMode === 'incremental' ? 'incremental' : 'created'}`)
+        console.log(`  Mode: ${result.importMode ?? 'unknown'}`)
         if (result.matchedBy) console.log(`  Matched by: ${result.matchedBy}`)
+        if (result.createReason) console.log(`  Create reason: ${result.createReason}`)
+        if (result.createReason === 'ambiguous') {
+          console.warn('  Warning: multiple existing sessions matched, so a new session was created.')
+        }
         console.log(`  New messages: ${result.newMessageCount ?? 0}`)
         console.log(`  Duplicates skipped: ${result.duplicateCount ?? 0}`)
 
@@ -117,7 +122,11 @@ program
           }
         }
       } else {
-        console.error(`\n\nImport failed: ${result.error}`)
+        const errorMessage =
+          result.error === IMPORT_IN_PROGRESS_ERROR_KEY
+            ? 'Another import is already in progress. Please retry later.'
+            : result.error
+        console.error(`\n\nImport failed: ${errorMessage}`)
         process.exitCode = 1
       }
     } catch (err) {

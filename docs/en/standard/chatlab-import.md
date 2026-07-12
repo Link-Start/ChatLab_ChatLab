@@ -371,7 +371,7 @@ After each successful batch, update the cursor with `session.lastTimestamp` from
 
 ### Concurrency
 
-Current version: **only one import task is allowed at a time per session**. Concurrent requests to the same sessionId return `IMPORT_IN_PROGRESS` (409); imports to different sessions run independently.
+Current version: **only one write import task is allowed at a time per user data directory**. If Desktop, CLI, Web, or the Push API is already importing into that data directory, later requests return `IMPORT_IN_PROGRESS` (409) even when they target a different sessionId. Read-only format detection and import analysis are not blocked.
 
 ---
 

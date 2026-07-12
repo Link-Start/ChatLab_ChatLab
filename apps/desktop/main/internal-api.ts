@@ -21,6 +21,7 @@ import {
   CustomProviderStore,
   CustomModelStore,
   MergeSessionCache,
+  withDataDirImportLock,
   raiseChatDbCompatibilityGate,
   streamingImport,
   createSemanticIndexWorkerRuntimeClient,
@@ -138,26 +139,29 @@ export async function startInternalServer(pathProvider: PathProvider): Promise<I
     }
 
     const electronStreamImport = async (dm: DatabaseManager, filePath: string) => {
-      const deps: StreamImportDeps = {
-        openDatabase(sessionId: string) {
-          return dm.openRawSessionDatabase(sessionId, { create: true, initializeChatTables: true })
-        },
-        deleteDatabase(sessionId: string) {
-          dm.deleteSessionDatabaseFiles(sessionId)
-        },
-        onProgress() {
-          /* no progress for merge-triggered import */
-        },
-      }
-      const result = await streamingImport(filePath, deps)
-      if (!result.sessionId) throw new Error('Import succeeded but no sessionId returned')
-      try {
-        raiseChatDbCompatibilityGate(pathProvider, runtime)
-      } catch (error) {
-        dm.deleteSessionDatabaseFiles(result.sessionId)
-        throw error
-      }
-      return { sessionId: result.sessionId }
+      return withDataDirImportLock(dm.getUserDataDir(), async () => {
+        const deps: StreamImportDeps = {
+          openDatabase(sessionId: string) {
+            return dm.openRawSessionDatabase(sessionId, { create: true, initializeChatTables: true })
+          },
+          deleteDatabase(sessionId: string) {
+            dm.deleteSessionDatabaseFiles(sessionId)
+          },
+          onProgress() {
+            /* no progress for merge-triggered import */
+          },
+        }
+        const result = await streamingImport(filePath, deps)
+        if (!result.success) throw new Error(result.error || 'Import failed')
+        if (!result.sessionId) throw new Error('Import succeeded but no sessionId returned')
+        try {
+          raiseChatDbCompatibilityGate(pathProvider, runtime)
+        } catch (error) {
+          dm.deleteSessionDatabaseFiles(result.sessionId)
+          throw error
+        }
+        return { sessionId: result.sessionId }
+      })
     }
 
     const { shell } = await import('electron')

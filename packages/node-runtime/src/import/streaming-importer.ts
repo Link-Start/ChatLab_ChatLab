@@ -25,6 +25,7 @@ import {
 } from '@openchatlab/parser'
 import * as fs from 'fs'
 import { buildFtsIndex } from '../fts'
+import { createMessageDedupState, registerMessageAndCheckDuplicate } from './message-deduplicator'
 
 // ==================== Public interfaces ====================
 
@@ -40,6 +41,7 @@ export interface ImportDiagnostics {
   detectedFormat: string | null
   messagesReceived: number
   messagesWritten: number
+  duplicateCount: number
   messagesSkipped: number
   skipReasons: SkipReasons
 }
@@ -245,6 +247,7 @@ async function streamImportSingle(
   let metaInserted = false
   let messageCountInBatch = 0
   let totalMessageCount = 0
+  let duplicateCount = 0
   let lastCheckpointCount = 0
   let inTransaction = false
 
@@ -305,6 +308,7 @@ async function streamImportSingle(
     skippedInvalidTimestamp: 0,
     skippedNoType: 0,
   }
+  const dedupState = createMessageDedupState()
 
   logger?.info('Starting streamParseFile...')
 
@@ -397,6 +401,28 @@ async function streamImportSingle(
               continue
             }
 
+            let safeContent: string | null = null
+            if (msg.content != null) {
+              safeContent = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+            }
+
+            if (
+              registerMessageAndCheckDuplicate(
+                {
+                  platformMessageId: msg.platformMessageId,
+                  timestamp: msg.timestamp,
+                  senderPlatformId: msg.senderPlatformId,
+                  type: msg.type,
+                  content: safeContent,
+                  replyToMessageId: msg.replyToMessageId,
+                },
+                dedupState
+              )
+            ) {
+              duplicateCount++
+              continue
+            }
+
             let t0 = Date.now()
             if (!memberIdMap.has(msg.senderPlatformId)) {
               insertMember.run(
@@ -418,11 +444,6 @@ async function streamImportSingle(
 
             const senderId = memberIdMap.get(msg.senderPlatformId)
             if (senderId === undefined) continue
-
-            let safeContent: string | null = null
-            if (msg.content != null) {
-              safeContent = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
-            }
 
             t0 = Date.now()
             insertMessage.run(
@@ -581,6 +602,7 @@ async function streamImportSingle(
         logger?.info(`  invalid timestamp: ${callbackStats.skippedInvalidTimestamp}`)
       if (callbackStats.skippedNoType > 0) logger?.info(`  missing type: ${callbackStats.skippedNoType}`)
     }
+    if (duplicateCount > 0) logger?.info(`Duplicate messages skipped: ${duplicateCount}`)
 
     logger?.summary(totalMessageCount, memberIdMap.size)
 
@@ -619,6 +641,7 @@ async function streamImportSingle(
     detectedFormat: formatFeature ? `${formatFeature.name} (${formatFeature.id})` : null,
     messagesReceived: callbackStats.totalMessagesReceived,
     messagesWritten: totalMessageCount,
+    duplicateCount,
     messagesSkipped:
       callbackStats.skippedNoSenderId +
       callbackStats.skippedNoAccountName +

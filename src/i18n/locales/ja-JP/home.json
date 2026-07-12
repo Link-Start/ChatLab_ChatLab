@@ -33,6 +33,7 @@
     "errors": {
       "no_file_selected": "ファイルが選択されていません",
       "import_failed": "インポートに失敗しました",
+      "import_in_progress": "別のインポートが実行中です。しばらくしてから再試行してください。",
       "unrecognized_format": "認識できないファイル形式です",
       "no_messages": "メッセージを検出できませんでした。ファイル形式が正しいか確認してください",
       "no_chat_selected": "チャットが選択されていません",
@@ -56,6 +57,7 @@
     },
     "outcome": {
       "created": "新しいセッションを作成しました",
+      "ambiguous": "既存セッションの候補が複数見つかったため、自動結合せず新しいセッションを作成しました",
       "incremental": "{newCount} 件を追加し、重複 {duplicateCount} 件をスキップしました",
       "unchanged": "インポート済みのため、新しいメッセージはありません"
     },
@@ -67,6 +69,7 @@
       "skipped": "スキップ済み",
       "success": "インポート成功",
       "created": "新しいセッションを作成しました",
+      "ambiguous": "候補が複数見つかったため、新しいセッションを作成しました",
       "incremental": "{newCount} 件追加、重複 {duplicateCount} 件スキップ",
       "unchanged": "インポート済み、新規メッセージなし",
       "completed": "一括インポート完了",

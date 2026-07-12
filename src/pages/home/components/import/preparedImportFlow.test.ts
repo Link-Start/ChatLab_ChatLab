@@ -25,6 +25,7 @@ describe('prepared import batch flow', () => {
               sessionId: `session-${chatId}`,
               importMode: 'incremental' as const,
               matchedBy: 'stable-id' as const,
+              createReason: undefined,
               newMessageCount: 2,
               duplicateCount: 5,
             }
@@ -43,12 +44,14 @@ describe('prepared import batch flow', () => {
       {
         importMode: result.items[0].importMode,
         matchedBy: result.items[0].matchedBy,
+        createReason: result.items[0].createReason,
         newMessageCount: result.items[0].newMessageCount,
         duplicateCount: result.items[0].duplicateCount,
       },
       {
         importMode: 'incremental',
         matchedBy: 'stable-id',
+        createReason: undefined,
         newMessageCount: 2,
         duplicateCount: 5,
       }

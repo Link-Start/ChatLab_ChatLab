@@ -1,4 +1,4 @@
-import { generateMessageKey, getSessionMeta, type DatabaseAdapter } from '@openchatlab/core'
+import { generateMessageKey, getSessionMeta, isChatSessionDb, type DatabaseAdapter } from '@openchatlab/core'
 import { streamParseFile, type ParsedMeta } from '@openchatlab/parser'
 import { MessageType } from '@openchatlab/shared-types'
 import { normalizeImportTimestamp } from './incremental-importer'
@@ -7,10 +7,11 @@ import type { ImportProgressCallback } from './streaming-importer'
 const MATCH_WINDOW_SIZE = 5
 
 export type AutoImportMatchMethod = 'source-session-id' | 'stable-id' | 'trailing-messages'
+export type AutoImportCreateReason = 'no-match' | 'ambiguous'
 
 export type AutoImportDecision =
   | { action: 'incremental'; sessionId: string; matchedBy: AutoImportMatchMethod }
-  | { action: 'create'; reason: 'no-match' | 'ambiguous' }
+  | { action: 'create'; reason: AutoImportCreateReason }
 
 export interface AutoImportMatcherDeps {
   listSessionIds(): string[]
@@ -83,8 +84,12 @@ export async function resolveAutoImportTarget(
   const stableMatches: string[] = []
   const trailingMatches: string[] = []
   for (const sessionId of deps.listSessionIds()) {
-    const db = deps.openReadonly(sessionId)
+    let db: DatabaseAdapter | null = null
     try {
+      db = deps.openReadonly(sessionId)
+      // Desktop 的数据库目录还可能包含配置库等非聊天 DB，匹配前统一排除。
+      if (!isChatSessionDb(db)) continue
+
       const candidate = getSessionMeta(db)
       if (candidate?.platform !== meta.platform || candidate.type !== meta.type) continue
 
@@ -105,7 +110,7 @@ export async function resolveAutoImportTarget(
         stableMatches.push(sessionId)
       }
 
-      if (!hasStableIdentity && sourceWindows.size > 0) {
+      if (sourceWindows.size > 0) {
         const rows = db
           .prepare(
             `SELECT msg.ts, member.platform_id, msg.type, msg.content
@@ -131,8 +136,13 @@ export async function resolveAutoImportTarget(
           if (sourceWindows.has(signature)) trailingMatches.push(sessionId)
         }
       }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      throw new Error(`Failed to inspect import candidate ${JSON.stringify(sessionId)}: ${detail}`, {
+        cause: error,
+      })
     } finally {
-      db.close()
+      db?.close()
     }
   }
 
@@ -143,13 +153,15 @@ export async function resolveAutoImportTarget(
     if (stableMatches.length === 1) {
       return { action: 'incremental', sessionId: stableMatches[0], matchedBy: 'stable-id' }
     }
-    return { action: 'create', reason: stableMatches.length > 1 ? 'ambiguous' : 'no-match' }
   }
+
+  // 稳定身份缺失、漂移或产生多个候选时，仍只接受唯一的 5 条连续消息重叠。
   if (meta.sourceSessionId && trailingMatches.includes(meta.sourceSessionId)) {
     return { action: 'incremental', sessionId: meta.sourceSessionId, matchedBy: 'source-session-id' }
   }
   if (trailingMatches.length === 1) {
     return { action: 'incremental', sessionId: trailingMatches[0], matchedBy: 'trailing-messages' }
   }
-  return { action: 'create', reason: trailingMatches.length > 1 ? 'ambiguous' : 'no-match' }
+  const ambiguous = stableMatches.length > 1 || trailingMatches.length > 1
+  return { action: 'create', reason: ambiguous ? 'ambiguous' : 'no-match' }
 }

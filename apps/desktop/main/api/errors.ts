@@ -3,6 +3,7 @@
  */
 
 import { DataDirCompatibilityError } from '@openchatlab/node-runtime/src/data-dir-compat'
+import { ImportInProgressError } from '@openchatlab/node-runtime/src/import/import-lock'
 
 export enum ApiErrorCode {
   UNAUTHORIZED = 'UNAUTHORIZED',
@@ -103,6 +104,7 @@ export function serverError(message = 'Internal server error'): ApiError {
 
 export function apiErrorFromUnknown(error: unknown): ApiError | null {
   if (error instanceof ApiError) return error
+  if (error instanceof ImportInProgressError) return importInProgress()
   const compatibilityError = findDataDirCompatibilityError(error)
   if (compatibilityError) return dataDirIncompatible(compatibilityError.message)
   return null

@@ -17,6 +17,7 @@ export interface PreparedBatchImportResult {
     error?: string
     importMode?: ImportResult['importMode']
     matchedBy?: ImportResult['matchedBy']
+    createReason?: ImportResult['createReason']
     newMessageCount?: number
     duplicateCount?: number
   }>
@@ -24,7 +25,7 @@ export interface PreparedBatchImportResult {
 
 type PreparedChatImportResult = Pick<
   ImportResult,
-  'success' | 'sessionId' | 'error' | 'importMode' | 'matchedBy' | 'newMessageCount' | 'duplicateCount'
+  'success' | 'sessionId' | 'error' | 'importMode' | 'matchedBy' | 'createReason' | 'newMessageCount' | 'duplicateCount'
 >
 
 export async function runPreparedImportBatch(options: {
@@ -59,6 +60,7 @@ export async function runPreparedImportBatch(options: {
           error: result.error,
           importMode: result.importMode,
           matchedBy: result.matchedBy,
+          createReason: result.createReason,
           newMessageCount: result.newMessageCount,
           duplicateCount: result.duplicateCount,
         })

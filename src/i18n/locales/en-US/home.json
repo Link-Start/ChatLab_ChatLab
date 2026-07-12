@@ -33,6 +33,7 @@
     "errors": {
       "no_file_selected": "No file selected",
       "import_failed": "Import failed",
+      "import_in_progress": "Another import is already in progress. Please try again later.",
       "unrecognized_format": "Unrecognized file format",
       "no_messages": "No messages parsed. Please check if the file format is correct.",
       "no_chat_selected": "No chat selected",
@@ -56,6 +57,7 @@
     },
     "outcome": {
       "created": "New session created",
+      "ambiguous": "Multiple existing sessions matched, so they were not merged and a new session was created",
       "incremental": "Added {newCount} messages and skipped {duplicateCount} duplicates",
       "unchanged": "Already imported; no new messages"
     },
@@ -67,6 +69,7 @@
       "skipped": "Skipped",
       "success": "Import successful",
       "created": "New session created",
+      "ambiguous": "Multiple candidates matched; created a new session",
       "incremental": "Added {newCount}; skipped {duplicateCount} duplicates",
       "unchanged": "Already imported; no new messages",
       "completed": "Batch import completed",

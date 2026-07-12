@@ -131,3 +131,48 @@ test('preserves ChatLab JSON member aliases during incremental import', async (t
 
   assert.deepEqual(JSON.parse(row?.aliases ?? '[]'), ['Ally'])
 })
+
+test('does not deduplicate messages that only share timestamp, sender and content', async (t) => {
+  const tempDir = makeTempDir()
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
+
+  const dbPath = path.join(tempDir, 'session.db')
+  const filePath = path.join(tempDir, 'different-type.json')
+  seedSessionDb(dbPath)
+
+  const db = openBetterSqliteDatabase(dbPath, { nativeBinding })
+  db.prepare('INSERT INTO member (platform_id, account_name) VALUES (?, ?)').run('wxid_alice', 'Alice')
+  const member = db.prepare('SELECT id FROM member WHERE platform_id = ?').get('wxid_alice') as { id: number }
+  db.prepare('INSERT INTO message (sender_id, ts, type, content) VALUES (?, ?, ?, ?)').run(
+    member.id,
+    1780330832,
+    0,
+    'same content'
+  )
+  db.close()
+
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify({
+      chatlab: { version: '0.0.2', exportedAt: 1780330900 },
+      meta: { name: 'Different Type', platform: 'wechat', type: 'private' },
+      members: [{ platformId: 'wxid_alice', accountName: 'Alice' }],
+      messages: [
+        {
+          sender: 'wxid_alice',
+          accountName: 'Alice',
+          timestamp: 1780330832,
+          type: 1,
+          content: 'same content',
+        },
+      ],
+    }),
+    'utf8'
+  )
+
+  const result = await incrementalImport('session', filePath, createDeps(dbPath))
+
+  assert.equal(result.success, true)
+  assert.equal(result.newMessageCount, 1)
+  assert.equal(result.batch?.duplicateCount, 0)
+})

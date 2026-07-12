@@ -2,6 +2,14 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DataDirCompatibilityError } from '@openchatlab/node-runtime/src/data-dir-compat'
 import { ApiErrorCode, apiErrorFromUnknown } from './errors'
+import { ImportInProgressError } from '@openchatlab/node-runtime/src/import/import-lock'
+
+test('apiErrorFromUnknown maps the shared import lock error to 409', () => {
+  const apiError = apiErrorFromUnknown(new ImportInProgressError())
+
+  assert.equal(apiError?.code, ApiErrorCode.IMPORT_IN_PROGRESS)
+  assert.equal(apiError?.statusCode, 409)
+})
 
 test('apiErrorFromUnknown maps data directory compatibility errors to 409', () => {
   const apiError = apiErrorFromUnknown(

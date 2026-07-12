@@ -371,7 +371,7 @@ ChatLab 不为调用方维护游标。推荐结构：
 
 ### 并发约束
 
-当前版本：**同一 session 同一时刻仅允许一个导入任务**。对同一 sessionId 的并发请求会收到 `IMPORT_IN_PROGRESS` (409) 错误；不同 session 的并发导入互不影响。
+当前版本：**同一用户数据目录同一时刻仅允许一个写入型导入任务**。如果 Desktop、CLI、Web 或 Push API 已在向该数据目录导入，后续请求即使目标 sessionId 不同，也会收到 `IMPORT_IN_PROGRESS` (409) 错误。格式检测、导入分析等只读操作不受此限制。
 
 ---
 

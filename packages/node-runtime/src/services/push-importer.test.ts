@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { DatabaseManager } from '../database-manager'
+import { withDataDirImportLock } from '../import/import-lock'
 import type { PushImportPayload } from './push-importer'
 import { pushImport } from './push-importer'
 
@@ -31,6 +32,27 @@ function createDatabaseManager(rootDir: string): DatabaseManager {
     { nativeBinding, allowMissingRuntimeForTests: true }
   )
 }
+
+test('rejects push imports while any writer holds the data-directory import lock', async (t) => {
+  const root = makeTempDir()
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const manager = createDatabaseManager(root)
+  const payload: PushImportPayload = {
+    chatlab: { version: '0.0.2', exportedAt: 1780330900 },
+    meta: { name: 'Concurrent Session', platform: 'wechat', type: 'private' },
+    members: [{ platformId: 'wxid_alice', accountName: 'Alice' }],
+    messages: [{ sender: 'wxid_alice', timestamp: 1780330832, type: 0, content: 'hello' }],
+  }
+
+  const outcome = await withDataDirImportLock(root, () => pushImport(manager, 'different-session', payload))
+
+  assert.deepEqual(outcome, {
+    ok: false,
+    reason: 'import_in_progress',
+    message: 'Another import is already in progress',
+  })
+  assert.equal(fs.existsSync(manager.getDbPath('different-session')), false)
+})
 
 test('deduplicates initial push batch when a platform-id message is repeated without platform id', async (t) => {
   const tempDir = makeTempDir()

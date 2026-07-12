@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { AnalysisSession, ImportProgress, ChatType } from '@/types/base'
 import { useDataService, useImportService, useSessionIndexService, usePlatformService } from '@/services'
-import type { AutoImportMatchMethod, AutoImportMode } from '@/services'
+import type { AutoImportCreateReason, AutoImportMatchMethod, AutoImportMode } from '@/services'
 import { IS_ELECTRON } from '@/utils/platform'
 
 /** 侧边栏筛选类型 */
@@ -44,6 +44,7 @@ export interface BatchFileInfo {
   sessionId?: string
   importMode?: AutoImportMode
   matchedBy?: AutoImportMatchMethod
+  createReason?: AutoImportCreateReason
   newMessageCount?: number
   duplicateCount?: number
 }
@@ -191,6 +192,7 @@ export const useSessionStore = defineStore(
       error?: string
       importMode?: AutoImportMode
       matchedBy?: AutoImportMatchMethod
+      createReason?: AutoImportCreateReason
       newMessageCount?: number
       duplicateCount?: number
     }> {
@@ -217,6 +219,7 @@ export const useSessionStore = defineStore(
       detectedFormat: string | null
       messagesReceived: number
       messagesWritten: number
+      duplicateCount: number
       messagesSkipped: number
       skipReasons: {
         noSenderId: number
@@ -235,6 +238,7 @@ export const useSessionStore = defineStore(
       diagnostics?: ImportDiagnosticsInfo
       importMode?: AutoImportMode
       matchedBy?: AutoImportMatchMethod
+      createReason?: AutoImportCreateReason
       newMessageCount?: number
       duplicateCount?: number
     }> {
@@ -312,6 +316,7 @@ export const useSessionStore = defineStore(
             diagnostics: importResult.diagnostics,
             importMode: importResult.importMode,
             matchedBy: importResult.matchedBy,
+            createReason: importResult.createReason,
             newMessageCount: importResult.newMessageCount,
             duplicateCount: importResult.duplicateCount,
           }
@@ -438,6 +443,7 @@ export const useSessionStore = defineStore(
               file.sessionId = importResult.sessionId
               file.importMode = importResult.importMode
               file.matchedBy = importResult.matchedBy
+              file.createReason = importResult.createReason
               file.newMessageCount = importResult.newMessageCount
               file.duplicateCount = importResult.duplicateCount
               successCount++
@@ -466,6 +472,7 @@ export const useSessionStore = defineStore(
             file.sessionId = importResult.sessionId
             file.importMode = importResult.importMode
             file.matchedBy = importResult.matchedBy
+            file.createReason = importResult.createReason
             file.newMessageCount = importResult.newMessageCount
             file.duplicateCount = importResult.duplicateCount
             successCount++

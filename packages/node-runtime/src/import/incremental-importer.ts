@@ -9,9 +9,10 @@
  */
 
 import type { DatabaseAdapter } from '@openchatlab/core'
-import { generateMessageKey, generateSessionIndex, generateIncrementalSessionIndex } from '@openchatlab/core'
+import { generateSessionIndex, generateIncrementalSessionIndex } from '@openchatlab/core'
 import { streamParseFile, detectFormat, getFormatFeatureById, type ParseProgress } from '@openchatlab/parser'
 import { insertFtsEntries, hasFtsTable } from '../fts'
+import { generateFallbackMessageKey, registerMessageAndCheckDuplicate } from './message-deduplicator'
 import type { ImportProgressCallback } from './streaming-importer'
 
 // ==================== Public interfaces ====================
@@ -87,32 +88,48 @@ function loadExistingDedup(db: DatabaseAdapter): {
 
   const hashRows = db
     .prepare(
-      `SELECT ts, m.platform_id as sender_platform_id, content
+      `SELECT ts, m.platform_id as sender_platform_id, msg.type, content, reply_to_message_id
        FROM message msg
        JOIN member m ON msg.sender_id = m.id`
     )
-    .all() as Array<{ ts: number; sender_platform_id: string; content: string | null }>
+    .all() as Array<{
+    ts: number
+    sender_platform_id: string
+    type: number
+    content: string | null
+    reply_to_message_id: string | null
+  }>
   for (const row of hashRows) {
-    existingKeys.add(generateMessageKey(row.ts, row.sender_platform_id, row.content))
+    existingKeys.add(
+      generateFallbackMessageKey({
+        timestamp: row.ts,
+        senderPlatformId: row.sender_platform_id,
+        type: row.type,
+        content: row.content,
+        replyToMessageId: row.reply_to_message_id ?? undefined,
+      })
+    )
   }
 
   return { existingPlatformMsgIds, existingKeys }
 }
 
 function isDuplicate(
-  msg: { platformMessageId?: string; timestamp: number; senderPlatformId: string; content: string | null },
+  msg: {
+    platformMessageId?: string
+    timestamp: number
+    senderPlatformId: string
+    type: number
+    content: string | null
+    replyToMessageId?: string
+  },
   existingPlatformMsgIds: Set<string>,
   existingKeys: Set<string>
 ): boolean {
-  if (msg.platformMessageId) {
-    if (existingPlatformMsgIds.has(msg.platformMessageId)) return true
-    existingPlatformMsgIds.add(msg.platformMessageId)
-    return false
-  }
-  const key = generateMessageKey(msg.timestamp, msg.senderPlatformId, msg.content)
-  if (existingKeys.has(key)) return true
-  existingKeys.add(key)
-  return false
+  return registerMessageAndCheckDuplicate(msg, {
+    platformMessageIds: existingPlatformMsgIds,
+    fallbackKeys: existingKeys,
+  })
 }
 
 export function normalizeImportTimestamp(timestamp: unknown): number | null {

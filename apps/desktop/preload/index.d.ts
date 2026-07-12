@@ -27,6 +27,8 @@ interface ImportDiagnostics {
   messagesReceived: number
   /** 写入的消息数 */
   messagesWritten: number
+  /** 去重过滤的消息数 */
+  duplicateCount: number
   /** 跳过的消息数 */
   messagesSkipped: number
   /** 跳过原因统计 */
@@ -44,6 +46,7 @@ interface ChatImportResult {
   error?: string
   importMode?: 'created' | 'incremental'
   matchedBy?: 'source-session-id' | 'stable-id' | 'trailing-messages'
+  createReason?: 'no-match' | 'ambiguous'
   newMessageCount?: number
   duplicateCount?: number
   diagnostics?: ImportDiagnostics

@@ -2,6 +2,7 @@ import { appLogger } from '../logging/app-logger'
 import {
   resolveAutoImportTarget,
   type AutoImportDecision,
+  type AutoImportCreateReason,
   type AutoImportMatcherDeps,
   type AutoImportMatchMethod,
 } from './auto-import-matcher'
@@ -33,13 +34,14 @@ export interface AutoImportResult {
   sessionId?: string
   importMode?: 'created' | 'incremental'
   matchedBy?: AutoImportMatchMethod
+  createReason?: AutoImportCreateReason
   newMessageCount?: number
   duplicateCount?: number
   diagnostics?: ImportDiagnostics
   error?: string
 }
 
-function mapCreateResult(result: StreamImportResult): AutoImportResult {
+function mapCreateResult(result: StreamImportResult, createReason?: AutoImportCreateReason): AutoImportResult {
   if (!result.success || !result.sessionId) {
     return { success: false, error: result.error, diagnostics: result.diagnostics }
   }
@@ -47,8 +49,9 @@ function mapCreateResult(result: StreamImportResult): AutoImportResult {
     success: true,
     sessionId: result.sessionId,
     importMode: 'created',
+    ...(createReason ? { createReason } : {}),
     newMessageCount: result.diagnostics?.messagesWritten ?? 0,
-    duplicateCount: 0,
+    duplicateCount: result.diagnostics?.duplicateCount ?? 0,
     diagnostics: result.diagnostics,
   }
 }
@@ -126,7 +129,7 @@ export async function autoImportFile(
       return result
     }
 
-    const result = mapCreateResult(await deps.createSession(filePath, options.formatOptions))
+    const result = mapCreateResult(await deps.createSession(filePath, options.formatOptions), decision.reason)
     appLogger.info('import', 'Automatic import created a new session', {
       reason: decision.reason,
       sessionId: result.sessionId,

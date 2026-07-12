@@ -198,6 +198,10 @@ export class DatabaseManager {
       })
   }
 
+  getUserDataDir(): string {
+    return this.pathProvider.getUserDataDir()
+  }
+
   /**
    * 获取数据库文件路径
    */

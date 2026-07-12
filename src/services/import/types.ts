@@ -18,6 +18,7 @@ export interface ImportOptions {
 
 export type AutoImportMode = 'created' | 'incremental'
 export type AutoImportMatchMethod = 'source-session-id' | 'stable-id' | 'trailing-messages'
+export type AutoImportCreateReason = 'no-match' | 'ambiguous'
 
 export interface ImportResult {
   success: boolean
@@ -25,6 +26,7 @@ export interface ImportResult {
   error?: string
   importMode?: AutoImportMode
   matchedBy?: AutoImportMatchMethod
+  createReason?: AutoImportCreateReason
   newMessageCount?: number
   duplicateCount?: number
   messageCount?: number
@@ -39,6 +41,7 @@ export function normalizeImportResult(result: ImportResult): ImportResult {
     error: result.error,
     importMode: result.importMode,
     matchedBy: result.matchedBy,
+    createReason: result.createReason,
     newMessageCount: result.newMessageCount,
     duplicateCount: result.duplicateCount,
     messageCount: result.messageCount,
@@ -52,6 +55,7 @@ export interface ImportDiagnosticsInfo {
   detectedFormat: string | null
   messagesReceived: number
   messagesWritten: number
+  duplicateCount: number
   messagesSkipped: number
   skipReasons: {
     noSenderId: number

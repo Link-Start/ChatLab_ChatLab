@@ -71,4 +71,69 @@ describe('CLI Web automatic import route', () => {
       await app.close()
     }
   })
+
+  it('returns a stable import-in-progress error event instead of an internal database error', async () => {
+    const app = Fastify()
+    try {
+      await app.register(multipart)
+      registerImportRoutes(
+        app,
+        {} as any,
+        {
+          runAutoImport: async () => ({ success: false, error: 'error.import_in_progress' }),
+        } as any
+      )
+
+      const body = multipartPayload()
+      const response = await app.inject({
+        method: 'POST',
+        url: '/_web/import',
+        headers: { 'content-type': body.contentType },
+        payload: body.payload,
+      })
+
+      assert.equal(response.statusCode, 200)
+      assert.match(response.body, /event: error/)
+      assert.match(response.body, /"error":"error\.import_in_progress"/)
+      assert.doesNotMatch(response.body, /no such column|SQLITE/i)
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('preserves an ambiguous create reason in the done event', async () => {
+    const app = Fastify()
+    try {
+      await app.register(multipart)
+      registerImportRoutes(
+        app,
+        {} as any,
+        {
+          runAutoImport: async () => ({
+            success: true,
+            sessionId: 'new-session',
+            importMode: 'created',
+            createReason: 'ambiguous',
+            newMessageCount: 3,
+            duplicateCount: 0,
+          }),
+        } as any
+      )
+
+      const body = multipartPayload()
+      const response = await app.inject({
+        method: 'POST',
+        url: '/_web/import',
+        headers: { 'content-type': body.contentType },
+        payload: body.payload,
+      })
+
+      assert.equal(response.statusCode, 200)
+      assert.match(response.body, /event: done/)
+      assert.match(response.body, /"importMode":"created"/)
+      assert.match(response.body, /"createReason":"ambiguous"/)
+    } finally {
+      await app.close()
+    }
+  })
 })

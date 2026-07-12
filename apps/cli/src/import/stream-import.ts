@@ -9,11 +9,14 @@
 import type { DatabaseManager } from '@openchatlab/node-runtime'
 import {
   DataDirCompatibilityError,
+  IMPORT_IN_PROGRESS_ERROR_KEY,
+  ImportInProgressError,
   autoImportFile as sharedAutoImportFile,
   streamingImport,
   analyzeNewImport as sharedAnalyzeNewImport,
   analyzeIncrementalImport as sharedAnalyzeIncremental,
   incrementalImport as sharedIncrementalImport,
+  withDataDirImportLock,
 } from '@openchatlab/node-runtime'
 import type {
   StreamImportResult,
@@ -128,7 +131,7 @@ function deleteSessionDatabase(dbManager: DatabaseManager, sessionId: string): v
  * High-performance streaming import: parse a file and write to DB
  * with batched transactions, deferred indexes, and FTS.
  */
-export async function streamImport(
+async function streamImportUnlocked(
   dbManager: DatabaseManager,
   filePath: string,
   options?: StreamImportOptions
@@ -159,6 +162,23 @@ export async function streamImport(
   return result
 }
 
+export async function streamImport(
+  dbManager: DatabaseManager,
+  filePath: string,
+  options?: StreamImportOptions
+): Promise<StreamImportResult> {
+  try {
+    return await withDataDirImportLock(dbManager.getUserDataDir(), () =>
+      streamImportUnlocked(dbManager, filePath, options)
+    )
+  } catch (error) {
+    if (error instanceof ImportInProgressError) {
+      return { success: false, error: IMPORT_IN_PROGRESS_ERROR_KEY }
+    }
+    throw error
+  }
+}
+
 export async function autoImport(
   dbManager: DatabaseManager,
   filePath: string,
@@ -170,30 +190,40 @@ export async function autoImport(
   if (chatIndex !== undefined) formatOptions.chatIndex = chatIndex
   const progressAdapter = createProgressAdapter(onProgress)
 
-  return sharedAutoImportFile(
-    filePath,
-    {
-      listSessionIds: () => dbManager.listSessionIds(),
-      openReadonly: (candidateSessionId) => dbManager.openRawSessionDatabase(candidateSessionId, { readonly: true }),
-      onProgress: progressAdapter,
-      sessionExists: (candidateSessionId) => dbManager.listSessionIds().includes(candidateSessionId),
-      createSession: (sourcePath, sourceFormatOptions, explicitSessionId) =>
-        streamImport(dbManager, sourcePath, {
-          ...options,
-          ...sourceFormatOptions,
-          sessionId: explicitSessionId,
-        }),
-      appendSession: (targetSessionId, sourcePath, sourceFormatOptions) =>
-        incrementalImport(dbManager, targetSessionId, sourcePath, {
-          ...sourceFormatOptions,
+  try {
+    return await withDataDirImportLock(dbManager.getUserDataDir(), () =>
+      sharedAutoImportFile(
+        filePath,
+        {
+          listSessionIds: () => dbManager.listSessionIds(),
+          openReadonly: (candidateSessionId) =>
+            dbManager.openRawSessionDatabase(candidateSessionId, { readonly: true }),
           onProgress: progressAdapter,
-        }),
-    },
-    {
-      explicitSessionId: sessionId,
-      formatOptions,
+          sessionExists: (candidateSessionId) => dbManager.listSessionIds().includes(candidateSessionId),
+          createSession: (sourcePath, sourceFormatOptions, explicitSessionId) =>
+            streamImportUnlocked(dbManager, sourcePath, {
+              ...options,
+              ...sourceFormatOptions,
+              sessionId: explicitSessionId,
+            }),
+          appendSession: (targetSessionId, sourcePath, sourceFormatOptions) =>
+            incrementalImportUnlocked(dbManager, targetSessionId, sourcePath, {
+              ...sourceFormatOptions,
+              onProgress: progressAdapter,
+            }),
+        },
+        {
+          explicitSessionId: sessionId,
+          formatOptions,
+        }
+      )
+    )
+  } catch (error) {
+    if (error instanceof ImportInProgressError) {
+      return { success: false, error: IMPORT_IN_PROGRESS_ERROR_KEY }
     }
-  )
+    throw error
+  }
 }
 
 // ==================== Incremental import ====================
@@ -216,7 +246,7 @@ function buildIncrementalDeps(
   }
 }
 
-export async function incrementalImport(
+async function incrementalImportUnlocked(
   dbManager: DatabaseManager,
   sessionId: string,
   filePath: string,
@@ -247,6 +277,24 @@ export async function incrementalImport(
   }
 
   return result
+}
+
+export async function incrementalImport(
+  dbManager: DatabaseManager,
+  sessionId: string,
+  filePath: string,
+  options?: ImportOptions & { onProgress?: ImportProgressCallback }
+): Promise<IncrementalImportResult> {
+  try {
+    return await withDataDirImportLock(dbManager.getUserDataDir(), () =>
+      incrementalImportUnlocked(dbManager, sessionId, filePath, options)
+    )
+  } catch (error) {
+    if (error instanceof ImportInProgressError) {
+      return { success: false, newMessageCount: 0, error: IMPORT_IN_PROGRESS_ERROR_KEY }
+    }
+    throw error
+  }
 }
 
 export async function analyzeIncrementalImport(

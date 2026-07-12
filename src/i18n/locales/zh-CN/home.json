@@ -33,6 +33,7 @@
     "errors": {
       "no_file_selected": "未选择文件",
       "import_failed": "导入失败",
+      "import_in_progress": "已有导入任务正在进行，请稍后重试",
       "unrecognized_format": "无法识别的文件格式",
       "no_messages": "未解析到任何消息，请检查文件格式是否正确",
       "no_chat_selected": "未选择聊天",
@@ -56,6 +57,7 @@
     },
     "outcome": {
       "created": "已创建新会话",
+      "ambiguous": "发现多个可能的已有会话，未自动合并，已创建新会话",
       "incremental": "已增量导入 {newCount} 条消息，跳过 {duplicateCount} 条重复消息",
       "unchanged": "内容已导入，没有新增消息"
     },
@@ -67,6 +69,7 @@
       "skipped": "已跳过",
       "success": "导入成功",
       "created": "已创建新会话",
+      "ambiguous": "候选会话不唯一，已创建新会话",
       "incremental": "新增 {newCount} 条，跳过 {duplicateCount} 条重复消息",
       "unchanged": "内容已导入，无新增消息",
       "completed": "批量导入完成",

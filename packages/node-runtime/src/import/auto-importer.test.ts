@@ -39,6 +39,7 @@ function createDeps(options?: {
           detectedFormat: 'fixture',
           messagesReceived: 12,
           messagesWritten: 10,
+          duplicateCount: 0,
           messagesSkipped: 2,
           skipReasons: { noSenderId: 0, noAccountName: 0, invalidTimestamp: 2, noType: 0 },
         },
@@ -125,6 +126,7 @@ for (const reason of ['no-match', 'ambiguous'] as const) {
 
     assert.equal(result.success, true)
     assert.equal(result.importMode, 'created')
+    assert.equal(result.createReason, reason)
     assert.equal(calls.match, 1)
     assert.equal(calls.create.length, 1)
     assert.deepEqual(calls.append, [])

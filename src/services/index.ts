@@ -25,6 +25,7 @@ export type {
   ImportResult,
   AutoImportMode,
   AutoImportMatchMethod,
+  AutoImportCreateReason,
   ImportDiagnosticsInfo,
   FormatInfo,
   MultiChatEntry,

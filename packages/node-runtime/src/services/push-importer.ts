@@ -17,9 +17,8 @@ import type { DatabaseAdapter } from '@openchatlab/core'
 import type { DatabaseManager } from '../database-manager'
 import { buildFtsIndex, insertFtsEntries } from '../fts'
 import { writeParseResultToDb } from '../import'
+import { ImportInProgressError, withDataDirImportLock } from '../import/import-lock'
 
-// Per-session lock: concurrent imports to different sessions are fine (separate DB files).
-const importInProgress = new Set<string>()
 const SYSTEM_SENDER_ID = 'SYSTEM'
 const SYSTEM_MEMBER_NAME = '系统消息'
 
@@ -437,14 +436,27 @@ export async function pushImport(
     return { ok: false, reason: 'invalid_payload', message: 'sessionId contains invalid characters' }
   }
 
-  if (importInProgress.has(sessionId)) {
-    return {
-      ok: false,
-      reason: 'import_in_progress',
-      message: 'Another import is already in progress for this session',
+  try {
+    return await withDataDirImportLock(dbManager.getUserDataDir(), () =>
+      pushImportUnlocked(dbManager, sessionId, payload)
+    )
+  } catch (error) {
+    if (error instanceof ImportInProgressError) {
+      return {
+        ok: false,
+        reason: 'import_in_progress',
+        message: 'Another import is already in progress',
+      }
     }
+    throw error
   }
+}
 
+async function pushImportUnlocked(
+  dbManager: DatabaseManager,
+  sessionId: string,
+  payload: PushImportPayload
+): Promise<PushImportOutcome> {
   const dbPath = dbManager.getDbPath(sessionId)
   const isNew = !fs.existsSync(dbPath)
 
@@ -453,7 +465,6 @@ export async function pushImport(
     return { ok: false, reason: 'invalid_payload', message: validationError }
   }
 
-  importInProgress.add(sessionId)
   try {
     if (isNew) {
       const db = dbManager.openRawSessionDatabase(sessionId, { create: true })
@@ -512,7 +523,5 @@ export async function pushImport(
       }
     }
     return { ok: false, reason: 'import_failed', message: err instanceof Error ? err.message : String(err) }
-  } finally {
-    importInProgress.delete(sessionId)
   }
 }

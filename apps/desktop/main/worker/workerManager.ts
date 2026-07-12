@@ -15,7 +15,12 @@ import { getNlpDir } from '../nlp/dictManager'
 import { resolveDesktopNativeBinding } from '../native-sqlite'
 import { assertDesktopDataDirCompatible, getDesktopAppVersion } from '../runtime-compat'
 import { getPathProvider } from '../path-context'
-import { raiseChatDbCompatibilityGate } from '@openchatlab/node-runtime'
+import {
+  IMPORT_IN_PROGRESS_ERROR_KEY,
+  ImportInProgressError,
+  raiseChatDbCompatibilityGate,
+  withDataDirImportLock,
+} from '@openchatlab/node-runtime'
 import { isRestartableReadOnlyRequestType } from './workerTimeoutPolicy'
 
 interface WorkerRequestOptions {
@@ -519,7 +524,7 @@ export async function streamParseFileInfo(
  * @param onProgress 进度回调
  * @param formatOptions 格式特定选项（如 Telegram 的 chatIndex）
  */
-export async function streamImport(
+async function streamImportUnlocked(
   filePath: string,
   onProgress?: (progress: ParseProgress) => void,
   formatOptions?: Record<string, unknown>,
@@ -551,36 +556,63 @@ export async function streamImport(
   return result
 }
 
+export async function streamImport(
+  filePath: string,
+  onProgress?: (progress: ParseProgress) => void,
+  formatOptions?: Record<string, unknown>,
+  externalSessionId?: string
+): Promise<StreamImportResult> {
+  try {
+    return await withDataDirImportLock(getPathProvider().getUserDataDir(), () =>
+      streamImportUnlocked(filePath, onProgress, formatOptions, externalSessionId)
+    )
+  } catch (error) {
+    if (error instanceof ImportInProgressError) {
+      return { success: false, error: IMPORT_IN_PROGRESS_ERROR_KEY }
+    }
+    throw error
+  }
+}
+
 export async function autoImport(
   filePath: string,
   onProgress?: (progress: ParseProgress) => void,
   formatOptions?: Record<string, unknown>,
   explicitSessionId?: string
 ): Promise<AutoImportResult> {
-  assertDataDirCompatibleNow()
-
-  const result = await sendToWorkerWithProgress<AutoImportResult>(
-    'autoImport',
-    { filePath, formatOptions, explicitSessionId },
-    onProgress
-  )
-  if (!result.success || !result.sessionId || result.importMode !== 'created') return result
-
   try {
-    raiseChatDbCompatibilityGate(getPathProvider(), {
-      version: getDesktopAppVersion(app.getVersion()),
-      kind: 'desktop',
+    return await withDataDirImportLock(getPathProvider().getUserDataDir(), async () => {
+      assertDataDirCompatibleNow()
+
+      const result = await sendToWorkerWithProgress<AutoImportResult>(
+        'autoImport',
+        { filePath, formatOptions, explicitSessionId },
+        onProgress
+      )
+      if (!result.success || !result.sessionId || result.importMode !== 'created') return result
+
+      try {
+        raiseChatDbCompatibilityGate(getPathProvider(), {
+          version: getDesktopAppVersion(app.getVersion()),
+          kind: 'desktop',
+        })
+      } catch (error) {
+        deleteImportedSessionFiles(result.sessionId)
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          diagnostics: result.diagnostics,
+        }
+      }
+
+      return result
     })
   } catch (error) {
-    deleteImportedSessionFiles(result.sessionId)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-      diagnostics: result.diagnostics,
+    if (error instanceof ImportInProgressError) {
+      return { success: false, error: IMPORT_IN_PROGRESS_ERROR_KEY }
     }
+    throw error
   }
-
-  return result
 }
 
 function deleteImportedSessionFiles(sessionId: string): void {
@@ -981,9 +1013,17 @@ export async function incrementalImport(
   onProgress?: (progress: ParseProgress) => void,
   options?: ImportOptions
 ): Promise<IncrementalImportResult> {
-  assertDataDirCompatibleNow()
-
-  return sendToWorkerWithProgress('incrementalImport', { sessionId, filePath, options }, onProgress)
+  try {
+    return await withDataDirImportLock(getPathProvider().getUserDataDir(), async () => {
+      assertDataDirCompatibleNow()
+      return sendToWorkerWithProgress('incrementalImport', { sessionId, filePath, options }, onProgress)
+    })
+  } catch (error) {
+    if (error instanceof ImportInProgressError) {
+      return { success: false, newMessageCount: 0, error: IMPORT_IN_PROGRESS_ERROR_KEY }
+    }
+    throw error
+  }
 }
 
 /**

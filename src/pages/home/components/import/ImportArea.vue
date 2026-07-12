@@ -53,7 +53,7 @@ const showFormatSelector = ref(false)
 const formatSelectorFilePath = ref('')
 
 async function autoGenerateSessionIndex(sessionId: string, importMode?: ImportResult['importMode']) {
-  if (importMode === 'incremental') return
+  if (importMode !== 'created') return
   try {
     const gapThreshold = getSessionGapThreshold()
     await useSessionIndexService().generate(sessionId, gapThreshold)
@@ -63,8 +63,17 @@ async function autoGenerateSessionIndex(sessionId: string, importMode?: ImportRe
 }
 
 function showImportOutcome(result: ImportResult) {
-  if (result.importMode !== 'incremental') {
+  if (result.importMode === 'created') {
+    if (result.createReason === 'ambiguous') {
+      toast.warn(t('home.import.outcome.ambiguous'))
+      return
+    }
     toast.success(t('home.import.outcome.created'))
+    return
+  }
+
+  if (result.importMode !== 'incremental') {
+    toast.success(t('home.import.batch.success'))
     return
   }
 
@@ -591,6 +600,7 @@ async function handleChatSelect(selectedChats: ChatInfo[]) {
         file.error = result.error
         file.importMode = result.importMode
         file.matchedBy = result.matchedBy
+        file.createReason = result.createReason
         file.newMessageCount = result.newMessageCount
         file.duplicateCount = result.duplicateCount
       },
@@ -694,6 +704,7 @@ async function handleChatSelect(selectedChats: ChatInfo[]) {
           batchFiles.value[i].sessionId = result.sessionId
           batchFiles.value[i].importMode = result.importMode
           batchFiles.value[i].matchedBy = result.matchedBy
+          batchFiles.value[i].createReason = result.createReason
           batchFiles.value[i].newMessageCount = result.newMessageCount
           batchFiles.value[i].duplicateCount = result.duplicateCount
           successCount++
@@ -726,6 +737,7 @@ async function handleChatSelect(selectedChats: ChatInfo[]) {
         error: f.error,
         importMode: f.importMode,
         matchedBy: f.matchedBy,
+        createReason: f.createReason,
         newMessageCount: f.newMessageCount,
         duplicateCount: f.duplicateCount,
       })),
@@ -845,7 +857,10 @@ function getBatchFileProgressText(file: BatchFileInfo): string {
 }
 
 function getBatchFileOutcomeText(file: BatchFileInfo): string {
-  if (file.importMode !== 'incremental') return t('home.import.batch.created')
+  if (file.importMode === 'created') {
+    return file.createReason === 'ambiguous' ? t('home.import.batch.ambiguous') : t('home.import.batch.created')
+  }
+  if (file.importMode !== 'incremental') return t('home.import.batch.success')
   if ((file.newMessageCount ?? 0) === 0) return t('home.import.batch.unchanged')
   return t('home.import.batch.incremental', {
     newCount: (file.newMessageCount ?? 0).toLocaleString(),
