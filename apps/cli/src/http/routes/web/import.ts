@@ -6,6 +6,7 @@ import { pipeline } from 'node:stream/promises'
 import type { FastifyInstance } from 'fastify'
 import { ArchiveImportError, ArchiveImportSourceManager, type DatabaseManager } from '@openchatlab/node-runtime'
 import {
+  autoImport,
   streamImport,
   incrementalImport,
   analyzeIncrementalImport,
@@ -16,6 +17,7 @@ import {
   scanMultiChatFile,
   findEntryFileInDirectory,
 } from '../../../import'
+import type { AutoImportResult, StreamImportOptions } from '../../../import'
 import { resolveNativeBinding } from './helpers'
 
 const DEMO_BASE_URL = 'https://chatlab.fun/assets/demo'
@@ -23,6 +25,7 @@ const ARCHIVE_UPLOAD_LIMIT = 50 * 1024 * 1024 * 1024
 
 interface ImportRouteOptions {
   sourceManager?: ArchiveImportSourceManager
+  runAutoImport?: (filePath: string, options: StreamImportOptions) => Promise<AutoImportResult>
   runPreparedImport?: (
     manifestPath: string,
     onProgress: (progress: unknown) => void
@@ -54,21 +57,16 @@ export function registerImportRoutes(
     new ArchiveImportSourceManager({
       tempRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'chatlab-import-sources-')),
     })
+  const runAutoImport = options.runAutoImport ?? autoImport.bind(null, dbManager)
   const runPreparedImport =
     options.runPreparedImport ??
     (async (manifestPath: string, onProgress: (progress: unknown) => void) => {
-      const result = await streamImport(dbManager, manifestPath, {
+      const result = await runAutoImport(manifestPath, {
         formatId: 'google-chat-takeout',
         nativeBinding: resolveNativeBinding(),
         onProgress: onProgress as any,
       })
-      return {
-        success: result.success,
-        sessionId: result.sessionId,
-        error: result.error,
-        messageCount: result.diagnostics?.messagesWritten ?? 0,
-        memberCount: 0,
-      }
+      return result
     })
 
   server.addHook('onClose', async () => {
@@ -221,7 +219,7 @@ export function registerImportRoutes(
 
     try {
       const nativeBinding = resolveNativeBinding()
-      const result = await streamImport(dbManager, tmpPath, {
+      const result = await runAutoImport(tmpPath, {
         formatId,
         chatIndex,
         nativeBinding,
@@ -229,12 +227,7 @@ export function registerImportRoutes(
       })
 
       if (result.success) {
-        sendEvent('done', {
-          success: true,
-          sessionId: result.sessionId,
-          messageCount: result.diagnostics?.messagesWritten ?? 0,
-          memberCount: 0,
-        })
+        sendEvent('done', result)
       } else {
         sendEvent('error', { success: false, error: result.error })
       }
@@ -297,18 +290,13 @@ export function registerImportRoutes(
       }
 
       const nativeBinding = resolveNativeBinding()
-      const result = await streamImport(dbManager, entryPath, {
+      const result = await runAutoImport(entryPath, {
         nativeBinding,
         onProgress: (p) => sendEvent('progress', p),
       })
 
       if (result.success) {
-        sendEvent('done', {
-          success: true,
-          sessionId: result.sessionId,
-          messageCount: result.diagnostics?.messagesWritten ?? 0,
-          memberCount: 0,
-        })
+        sendEvent('done', result)
       } else {
         sendEvent('error', { success: false, error: result.error })
       }

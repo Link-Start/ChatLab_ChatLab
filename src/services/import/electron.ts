@@ -15,6 +15,7 @@ import type {
   IncrementalAnalysis,
   IncrementalImportResult,
 } from './types'
+import { normalizeImportResult } from './types'
 
 function resolveFilePath(file: File | string): string | null {
   if (typeof file === 'string') return file
@@ -50,14 +51,20 @@ export class ElectronImportAdapter implements ImportAdapter {
           : window.chatApi.import(filePath)
 
       importPromise
-        .then((result: any) => {
+        .then((result) => {
           unlisten()
-          resolve({
-            success: result.success,
-            sessionId: result.sessionId,
-            error: result.error,
-            diagnostics: result.diagnostics,
-          })
+          resolve(
+            normalizeImportResult({
+              success: result.success,
+              sessionId: result.sessionId,
+              error: result.error,
+              importMode: result.importMode,
+              matchedBy: result.matchedBy,
+              newMessageCount: result.newMessageCount,
+              duplicateCount: result.duplicateCount,
+              diagnostics: result.diagnostics,
+            })
+          )
         })
         .catch((err: Error) => {
           unlisten()
@@ -104,7 +111,7 @@ export class ElectronImportAdapter implements ImportAdapter {
       })
     })
     try {
-      return await window.chatApi.importPreparedChat(sourceId, chatId)
+      return normalizeImportResult(await window.chatApi.importPreparedChat(sourceId, chatId))
     } finally {
       unlisten()
     }
@@ -182,14 +189,20 @@ export class ElectronImportAdapter implements ImportAdapter {
 
       window.chatApi
         .importDirectory(source)
-        .then((result: any) => {
+        .then((result) => {
           unlisten()
-          resolve({
-            success: result.success,
-            sessionId: result.sessionId,
-            error: result.error,
-            diagnostics: result.diagnostics,
-          })
+          resolve(
+            normalizeImportResult({
+              success: result.success,
+              sessionId: result.sessionId,
+              error: result.error,
+              importMode: result.importMode,
+              matchedBy: result.matchedBy,
+              newMessageCount: result.newMessageCount,
+              duplicateCount: result.duplicateCount,
+              diagnostics: result.diagnostics,
+            })
+          )
         })
         .catch((err: Error) => {
           unlisten()

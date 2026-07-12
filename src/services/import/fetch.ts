@@ -17,6 +17,7 @@ import type {
   IncrementalAnalysis,
   IncrementalImportResult,
 } from './types'
+import { normalizeImportResult } from './types'
 import { get, fetchWithAuth, getBaseUrl } from '../utils/http'
 
 async function consumeSseStream<T>(res: Response, fallback: T, onProgress?: (p: ImportProgress) => void): Promise<T> {
@@ -76,7 +77,9 @@ export class FetchImportAdapter implements ImportAdapter {
       return { success: false, error: `HTTP ${res.status}: ${text}` }
     }
 
-    return consumeSseStream<ImportResult>(res, { success: false, error: 'Unknown error' }, onProgress)
+    return normalizeImportResult(
+      await consumeSseStream<ImportResult>(res, { success: false, error: 'Unknown error' }, onProgress)
+    )
   }
 
   async detectFormat(file: File | string): Promise<FormatInfo | null> {
@@ -128,7 +131,9 @@ export class FetchImportAdapter implements ImportAdapter {
       const text = await res.text()
       return { success: false, error: `HTTP ${res.status}: ${text}` }
     }
-    return consumeSseStream<ImportResult>(res, { success: false, error: 'Unknown error' }, onProgress)
+    return normalizeImportResult(
+      await consumeSseStream<ImportResult>(res, { success: false, error: 'Unknown error' }, onProgress)
+    )
   }
 
   async releaseImportSource(sourceId: string): Promise<void> {
@@ -266,6 +271,8 @@ export class FetchImportAdapter implements ImportAdapter {
       return { success: false, error: `HTTP ${res.status}: ${text}` }
     }
 
-    return consumeSseStream<ImportResult>(res, { success: false, error: 'Unknown error' }, onProgress)
+    return normalizeImportResult(
+      await consumeSseStream<ImportResult>(res, { success: false, error: 'Unknown error' }, onProgress)
+    )
   }
 }

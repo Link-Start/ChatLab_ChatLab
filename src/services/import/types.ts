@@ -16,13 +16,35 @@ export interface ImportOptions {
 
 // ==================== 导入结果 ====================
 
+export type AutoImportMode = 'created' | 'incremental'
+export type AutoImportMatchMethod = 'stable-id' | 'trailing-messages'
+
 export interface ImportResult {
   success: boolean
   sessionId?: string
   error?: string
+  importMode?: AutoImportMode
+  matchedBy?: AutoImportMatchMethod
+  newMessageCount?: number
+  duplicateCount?: number
   messageCount?: number
   memberCount?: number
   diagnostics?: ImportDiagnosticsInfo
+}
+
+export function normalizeImportResult(result: ImportResult): ImportResult {
+  return {
+    success: result.success,
+    sessionId: result.sessionId,
+    error: result.error,
+    importMode: result.importMode,
+    matchedBy: result.matchedBy,
+    newMessageCount: result.newMessageCount,
+    duplicateCount: result.duplicateCount,
+    messageCount: result.messageCount,
+    memberCount: result.memberCount,
+    diagnostics: result.diagnostics,
+  }
 }
 
 export interface ImportDiagnosticsInfo {
