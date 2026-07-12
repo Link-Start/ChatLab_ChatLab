@@ -1,0 +1,143 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { autoImportFile, type AutoImportDeps } from './auto-importer'
+import type { AutoImportDecision } from './auto-import-matcher'
+
+function createDeps(options?: {
+  existingSessionIds?: string[]
+  decision?: AutoImportDecision
+  matchError?: Error
+  createdSessionId?: string
+  incrementalNewCount?: number
+  incrementalDuplicateCount?: number
+}) {
+  const calls = {
+    match: 0,
+    create: [] as Array<{ filePath: string; sessionId?: string }>,
+    append: [] as Array<{ sessionId: string; filePath: string }>,
+  }
+  const existing = new Set(options?.existingSessionIds ?? [])
+
+  const deps: AutoImportDeps = {
+    listSessionIds: () => [...existing],
+    openReadonly: () => {
+      throw new Error('not used by fake matcher')
+    },
+    sessionExists: (sessionId) => existing.has(sessionId),
+    resolveTarget: async () => {
+      calls.match++
+      if (options?.matchError) throw options.matchError
+      return options?.decision ?? { action: 'create', reason: 'no-match' }
+    },
+    createSession: async (filePath, _formatOptions, sessionId) => {
+      calls.create.push({ filePath, sessionId })
+      return {
+        success: true,
+        sessionId: sessionId ?? options?.createdSessionId ?? 'created-session',
+        diagnostics: {
+          logFile: null,
+          detectedFormat: 'fixture',
+          messagesReceived: 12,
+          messagesWritten: 10,
+          messagesSkipped: 2,
+          skipReasons: { noSenderId: 0, noAccountName: 0, invalidTimestamp: 2, noType: 0 },
+        },
+      }
+    },
+    appendSession: async (sessionId, filePath) => {
+      calls.append.push({ sessionId, filePath })
+      const newMessageCount = options?.incrementalNewCount ?? 3
+      return {
+        success: true,
+        newMessageCount,
+        batch: {
+          receivedCount: newMessageCount + (options?.incrementalDuplicateCount ?? 5),
+          writtenCount: newMessageCount,
+          duplicateCount: options?.incrementalDuplicateCount ?? 5,
+          errorCount: 0,
+          errorReasonCounts: {},
+          errorSample: [],
+        },
+      }
+    },
+  }
+
+  return { deps, calls }
+}
+
+test('explicit existing session forces incremental import without matching', async () => {
+  const { deps, calls } = createDeps({ existingSessionIds: ['explicit'] })
+
+  const result = await autoImportFile('source.json', deps, { explicitSessionId: 'explicit' })
+
+  assert.deepEqual(result, {
+    success: true,
+    sessionId: 'explicit',
+    importMode: 'incremental',
+    newMessageCount: 3,
+    duplicateCount: 5,
+  })
+  assert.equal(calls.match, 0)
+  assert.deepEqual(calls.create, [])
+  assert.deepEqual(calls.append, [{ sessionId: 'explicit', filePath: 'source.json' }])
+})
+
+test('explicit missing session creates with the requested id without matching', async () => {
+  const { deps, calls } = createDeps()
+
+  const result = await autoImportFile('source.json', deps, { explicitSessionId: 'requested' })
+
+  assert.equal(result.success, true)
+  assert.equal(result.sessionId, 'requested')
+  assert.equal(result.importMode, 'created')
+  assert.equal(result.newMessageCount, 10)
+  assert.equal(result.duplicateCount, 0)
+  assert.equal(calls.match, 0)
+  assert.deepEqual(calls.create, [{ filePath: 'source.json', sessionId: 'requested' }])
+})
+
+test('automatic unique match preserves incremental mode when every message is duplicate', async () => {
+  const { deps, calls } = createDeps({
+    decision: { action: 'incremental', sessionId: 'existing', matchedBy: 'trailing-messages' },
+    incrementalNewCount: 0,
+    incrementalDuplicateCount: 500,
+  })
+
+  const result = await autoImportFile('source.json', deps)
+
+  assert.deepEqual(result, {
+    success: true,
+    sessionId: 'existing',
+    importMode: 'incremental',
+    matchedBy: 'trailing-messages',
+    newMessageCount: 0,
+    duplicateCount: 500,
+  })
+  assert.equal(calls.match, 1)
+  assert.deepEqual(calls.create, [])
+})
+
+for (const reason of ['no-match', 'ambiguous'] as const) {
+  test(`automatic ${reason} decision creates a new session`, async () => {
+    const { deps, calls } = createDeps({ decision: { action: 'create', reason } })
+
+    const result = await autoImportFile('source.json', deps)
+
+    assert.equal(result.success, true)
+    assert.equal(result.importMode, 'created')
+    assert.equal(calls.match, 1)
+    assert.equal(calls.create.length, 1)
+    assert.deepEqual(calls.append, [])
+  })
+}
+
+test('matcher failure stops import instead of silently creating a session', async () => {
+  const { deps, calls } = createDeps({ matchError: new Error('candidate database failed') })
+
+  const result = await autoImportFile('source.json', deps)
+
+  assert.equal(result.success, false)
+  assert.match(result.error ?? '', /candidate database failed/)
+  assert.deepEqual(calls.create, [])
+  assert.deepEqual(calls.append, [])
+})

@@ -34,6 +34,8 @@ export type {
 } from './incremental-importer'
 export { resolveAutoImportTarget } from './auto-import-matcher'
 export type { AutoImportDecision, AutoImportMatcherDeps, AutoImportMatchMethod } from './auto-import-matcher'
+export { autoImportFile } from './auto-importer'
+export type { AutoImportDeps, AutoImportOptions, AutoImportResult } from './auto-importer'
 export { ZipArchiveReader, validateArchiveEntryName } from './archive/archive-reader'
 export { ArchiveImportError } from './archive/errors'
 export { GoogleChatTakeoutResolver } from './archive/google-chat-resolver'
