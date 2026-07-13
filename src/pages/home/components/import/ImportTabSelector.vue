@@ -3,11 +3,11 @@ import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
-  modelValue: 'file' | 'api' | 'push'
+  modelValue: 'file' | 'api' | 'cli'
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: 'file' | 'api' | 'push']
+  'update:modelValue': [value: 'file' | 'api' | 'cli']
 }>()
 
 const { t } = useI18n()
@@ -16,7 +16,7 @@ const { t } = useI18n()
 const tabs = [
   { id: 'file', labelKey: 'home.tabs.file' },
   { id: 'api', labelKey: 'home.tabs.api' },
-  { id: 'push', labelKey: 'home.tabs.push' },
+  { id: 'cli', labelKey: 'home.tabs.cli' },
 ] as const
 
 // 缓存按钮引用以计算滑动偏移

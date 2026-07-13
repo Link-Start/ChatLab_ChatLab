@@ -93,6 +93,8 @@ chatlab-analyze 帮我分析我和小红的聊天记录
 
 这个技能会引导 Agent 先执行 `chatlab manifest` 获取机读命令清单，再用安全的 `--format agent/json` 查询聊天记录。
 
+`chatlab-analyze` 始终只读。如果你希望 Agent 导入新的聊天导出文件，请改用独立的 `chatlab-import` Skill；它会先预览导入计划并等待确认，详见[导入聊天记录指南](./how-to-import.md)。
+
 典型配方——"谁最早提到某个问题？查看现场"：
 
 ```bash
