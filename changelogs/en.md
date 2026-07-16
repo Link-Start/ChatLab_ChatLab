@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.31.2 (2026-07-16)
+
+> Unify member management for group and private chats, improve automatic import guidance, and fix screenshot copying and interface stability.
+
+### ✨ Features
+
+- Move member management to a virtualized table with sorting by message count, group nickname, and last message time, plus row selection and Shift-click range selection
+- Use the same member management experience for group and private chats, including search, aliases, chat record viewing, merging, and deletion
+- Add a Home automatic import hint to the incremental import dialog
+
+### 🐛 Bug Fixes
+
+- [CLI Web] Fix screenshots not being copied directly as images
+
 ## v0.31.1 (2026-07-15)
 
 > Reorganize Home import options, add Agent/CLI import previews, and fix import consistency, message ordering, and sidebar layout.
