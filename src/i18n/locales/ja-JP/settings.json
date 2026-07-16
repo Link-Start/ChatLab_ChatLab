@@ -11,6 +11,7 @@
     "aiPreprocess": "前処理",
     "dataManage": "データ管理",
     "storage": "ストレージ管理",
+    "security": "セキュリティ",
     "sessionManage": "セッションインデックス",
     "about": "ChatLabについて",
     "api": "オートメーション",
@@ -608,6 +609,42 @@
       "readOnly": "すべての操作は読み取り専用で、チャット記録は変更されません。",
       "nodeRequired": "npx および CLI モードには Node.js 20 以上が必要です。",
       "docs": "詳細なドキュメントは docs.chatlab.fun をご覧ください。"
+    }
+  },
+  "security": {
+    "lock": {
+      "title": "アプリロック",
+      "desc": "4桁のPINでChatLabを保護します",
+      "statusOn": "有効",
+      "statusOff": "無効",
+      "disableBtn": "アプリロックを無効にする",
+      "disableConfirm": "アプリロックを無効にしますか？現在のPINは削除されます。",
+      "manualLock": "今すぐロック"
+    },
+    "password": {
+      "titleSetup": "PIN設定とアプリロック有効化",
+      "titleChange": "PIN変更",
+      "labelOld": "現在のPIN",
+      "labelNew": "新しいPIN",
+      "labelConfirm": "新しいPIN（確認）",
+      "btnEnable": "有効にする",
+      "errorInvalidPin": "PINは4桁の数字で入力してください",
+      "errorMismatch": "PINが一致しません",
+      "errorSameAsOld": "新しいPINを現在のものと同じにしないでください",
+      "errorFailed": "操作に失敗しました。再試行してください"
+    },
+    "autoLock": {
+      "title": "自動ロック",
+      "idleLabel": "アイドル時に自動ロック",
+      "startupLabel": "起動時にロック解除を要求"
+    },
+    "lockScreen": {
+      "titleLocked": "ChatLab はロックされています",
+      "placeholderPassword": "4桁のPINを入力",
+      "btnUnlock": "ロック解除",
+      "verifying": "検証中...",
+      "errorService": "ロック解除に失敗しました。再試行してください",
+      "errorWrongPassword": "PINが正しくありません"
     }
   }
 }

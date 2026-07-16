@@ -1,6 +1,6 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type { ImportProgress, ExportProgress } from '../../../src/types/base'
-import type { TokenUsage, AgentRuntimeStatus, SerializedErrorInfo } from '../shared/types'
+import type { TokenUsage, AgentRuntimeStatus, SerializedErrorInfo, SecurityApi } from '../shared/types'
 import type { TimeFilter } from '@openchatlab/shared-types'
 
 // 迁移相关类型
@@ -299,6 +299,7 @@ declare global {
     networkApi: NetworkApi
     apiServerApi: ApiServerApi
     internalApi: InternalApi
+    securityApi: SecurityApi
   }
 }
 
@@ -334,4 +335,5 @@ export {
   ApiServerStatus,
   InternalApi,
   InternalEndpoint,
+  SecurityApi,
 }

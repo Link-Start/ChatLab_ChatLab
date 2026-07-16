@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useColorMode } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
@@ -24,6 +24,8 @@ import { configureHttpClient } from '@/services/utils/http'
 import { IS_ELECTRON } from '@/utils/platform'
 import { usePlatformService } from '@/services'
 import { resolvePageTransitionKey } from '@/routes/page-transition-key'
+
+const LockScreen = IS_ELECTRON ? defineAsyncComponent(() => import('@/components/lock-screen/LockScreen.vue')) : null
 
 const { t } = useI18n()
 
@@ -82,12 +84,14 @@ async function initializeApp() {
 
 function handleGlobalKeydown(e: KeyboardEvent) {
   const isMeta = navigator.platform.toLowerCase().includes('mac') ? e.metaKey : e.ctrlKey
+  // Ctrl+, → 打开设置
   if (isMeta && e.key === ',') {
     e.preventDefault()
     e.stopPropagation()
     if (!layoutStore.showSettings) {
       layoutStore.openSettings()
     }
+    return
   }
 }
 
@@ -208,6 +212,8 @@ onUnmounted(() => {
     <ChatRecordDrawer />
     <!-- 全局 AI 后台任务条：允许用户离开当前页面后仍然快速返回进行中的对话。 -->
     <GlobalTaskBar />
+    <!-- 应用锁覆盖层：最高 z-index，锁定后拦截全部底层操作 -->
+    <LockScreen v-if="IS_ELECTRON" />
   </UApp>
 </template>
 

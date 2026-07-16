@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, nextTick } from 'vue'
+import { ref, watch, computed, defineAsyncComponent, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import AISettingsTab from './Settings/AISettingsTab.vue'
@@ -11,6 +11,11 @@ import ApiSettingsTab from './Settings/ApiSettingsTab.vue'
 import { PageTabs } from '@/components/navigation'
 import { usePromptStore } from '@/stores/prompt'
 import { useLayoutStore } from '@/stores/layout'
+import { IS_ELECTRON } from '@/utils/platform'
+
+const SecuritySettingsTab = IS_ELECTRON
+  ? defineAsyncComponent(() => import('./Settings/SecuritySettingsTab.vue'))
+  : null
 
 const { t } = useI18n()
 const promptStore = usePromptStore()
@@ -28,6 +33,7 @@ const tabs = computed(() => [
   { id: 'api', label: t('settings.tabs.api'), icon: 'i-heroicons-server-stack' },
   { id: 'data', label: t('settings.tabs.dataManage'), icon: 'i-heroicons-rectangle-stack' },
   { id: 'storage', label: t('settings.tabs.storage'), icon: 'i-heroicons-folder-open' },
+  ...(IS_ELECTRON ? [{ id: 'security', label: t('settings.tabs.security'), icon: 'i-heroicons-shield-check' }] : []),
   { id: 'about', label: t('settings.tabs.about'), icon: 'i-heroicons-information-circle' },
 ])
 
@@ -59,7 +65,8 @@ function scrollToSubTab(subTab: string) {
 
 watch(showSettings, async (visible) => {
   if (visible) {
-    activeTab.value = settingsTab.value || 'settings'
+    const requestedTab = settingsTab.value || 'settings'
+    activeTab.value = tabs.value.some((tab) => tab.id === requestedTab) ? requestedTab : 'settings'
     if (settingsSubTab.value) {
       await nextTick()
       setTimeout(() => scrollToSubTab(settingsSubTab.value!), 100)
@@ -105,9 +112,9 @@ watch(showSettings, async (visible) => {
         </div>
 
         <div class="relative flex-1">
-          <div class="absolute inset-0 p-6">
+          <div class="absolute inset-0 overflow-y-auto p-6">
             <Transition name="tab-slide" mode="out-in">
-              <div v-if="activeTab === 'settings'" key="settings" class="h-full overflow-y-auto">
+              <div v-if="activeTab === 'settings'" key="settings" class="h-full">
                 <BasicSettingsTab />
               </div>
               <AISettingsTab
@@ -127,6 +134,7 @@ watch(showSettings, async (visible) => {
                 key="storage"
                 :ref="(el: unknown) => setTabRef('storage', el)"
               />
+              <SecuritySettingsTab v-else-if="IS_ELECTRON && activeTab === 'security'" key="security" />
               <div v-else-if="activeTab === 'about'" key="about" class="h-full overflow-y-auto">
                 <AboutTab />
               </div>

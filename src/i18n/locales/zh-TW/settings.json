@@ -11,6 +11,7 @@
     "aiPreprocess": "前處理",
     "dataManage": "資料管理",
     "storage": "儲存管理",
+    "security": "安全",
     "sessionManage": "會話索引",
     "about": "關於 ChatLab",
     "api": "自動化",
@@ -608,6 +609,42 @@
       "readOnly": "所有操作均為唯讀，不會修改你的聊天記錄。",
       "nodeRequired": "npx 和 CLI 方式需要 Node.js 20 或更高版本。",
       "docs": "詳細文件請造訪 docs.chatlab.fun。"
+    }
+  },
+  "security": {
+    "lock": {
+      "title": "應用鎖",
+      "desc": "使用 4 位數字密碼保護 ChatLab",
+      "statusOn": "已開啟",
+      "statusOff": "未開啟",
+      "disableBtn": "關閉應用鎖",
+      "disableConfirm": "確定關閉應用鎖？關閉後將刪除目前的密碼。",
+      "manualLock": "立即鎖定"
+    },
+    "password": {
+      "titleSetup": "設定 4 位密碼並開啟應用鎖",
+      "titleChange": "修改密碼",
+      "labelOld": "舊密碼",
+      "labelNew": "輸入新密碼",
+      "labelConfirm": "確認新密碼",
+      "btnEnable": "開啟",
+      "errorInvalidPin": "密碼必須是 4 位數字",
+      "errorMismatch": "兩次輸入的密碼不一致",
+      "errorSameAsOld": "新密碼不能與舊密碼相同",
+      "errorFailed": "操作失敗，請重試"
+    },
+    "autoLock": {
+      "title": "自動鎖定",
+      "idleLabel": "閒置逾時自動鎖定",
+      "startupLabel": "啟動時要求解鎖"
+    },
+    "lockScreen": {
+      "titleLocked": "ChatLab 已鎖定",
+      "placeholderPassword": "輸入 4 位數字密碼",
+      "btnUnlock": "解鎖",
+      "verifying": "驗證中...",
+      "errorService": "解鎖失敗，請重試",
+      "errorWrongPassword": "密碼錯誤"
     }
   }
 }

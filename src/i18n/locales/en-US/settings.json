@@ -11,6 +11,7 @@
     "aiPreprocess": "Preprocess",
     "dataManage": "Data Management",
     "storage": "Storage",
+    "security": "Security",
     "sessionManage": "Session Index",
     "about": "About",
     "api": "Automation",
@@ -608,6 +609,42 @@
       "readOnly": "All operations are read-only and will not modify your chat records.",
       "nodeRequired": "npx and CLI modes require Node.js 20 or higher.",
       "docs": "For detailed documentation, visit docs.chatlab.fun."
+    }
+  },
+  "security": {
+    "lock": {
+      "title": "App Lock",
+      "desc": "Protect ChatLab with a 4-digit PIN",
+      "statusOn": "Enabled",
+      "statusOff": "Disabled",
+      "disableBtn": "Disable App Lock",
+      "disableConfirm": "Disable app lock? Your current PIN will be deleted.",
+      "manualLock": "Lock Now"
+    },
+    "password": {
+      "titleSetup": "Set PIN & Enable App Lock",
+      "titleChange": "Change PIN",
+      "labelOld": "Current PIN",
+      "labelNew": "New PIN",
+      "labelConfirm": "Confirm New PIN",
+      "btnEnable": "Enable",
+      "errorInvalidPin": "PIN must be exactly 4 digits",
+      "errorMismatch": "PINs do not match",
+      "errorSameAsOld": "New PIN must differ from current PIN",
+      "errorFailed": "Operation failed, please try again"
+    },
+    "autoLock": {
+      "title": "Auto Lock",
+      "idleLabel": "Auto lock after idle timeout",
+      "startupLabel": "Require unlock on startup"
+    },
+    "lockScreen": {
+      "titleLocked": "ChatLab is Locked",
+      "placeholderPassword": "Enter 4-digit PIN",
+      "btnUnlock": "Unlock",
+      "verifying": "Verifying...",
+      "errorService": "Unlock failed, please try again",
+      "errorWrongPassword": "Incorrect PIN"
     }
   }
 }
