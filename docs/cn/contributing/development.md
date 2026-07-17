@@ -28,9 +28,10 @@ pnpm install
 
 | 命令 | 用途 |
 | --- | --- |
-| `pnpm dev` | 交互式选择开发目标 |
+| `pnpm dev` | 交互式选择 Desktop、CLI Web、Browser、Server 或文档站开发目标 |
 | `pnpm dev:desktop` | 启动 Electron 桌面端开发模式 |
 | `pnpm dev:web` | 启动 CLI Web UI 开发模式 |
+| `pnpm dev:web-standalone` | 启动纯浏览器本地版，默认访问 `http://127.0.0.1:3130/` |
 | `pnpm docs:dev` | 启动公开文档站开发模式 |
 | `pnpm build:desktop` | 构建桌面端 |
 | `pnpm build:web` | 构建 Web UI |
