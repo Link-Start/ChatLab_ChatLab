@@ -1,15 +1,11 @@
 import { CHAT_DB_INDEXES, CHAT_DB_TABLES, CURRENT_SCHEMA_VERSION, type DatabaseAdapter } from '@openchatlab/core'
 import type { OpenDatabaseResult } from '../rpc/protocol'
 import { WebRuntimeError } from '../runtime-error'
+import type { WorkspaceDatabaseStage } from '../storage/workspace-database'
 import { SqliteWasmDatabaseAdapter } from './adapter'
 import { initializeOpfsSqlite, type InitializedSqliteRuntime, type SqliteInitializationStage } from './opfs'
 
-export type DatabaseOpenStage =
-  | SqliteInitializationStage
-  | 'opfs-database-opening'
-  | 'opfs-database-opened'
-  | 'schema-initializing'
-  | 'schema-ready'
+export type DatabaseOpenStage = WorkspaceDatabaseStage
 
 export class BrowserDatabaseRuntime {
   private initialized: Promise<InitializedSqliteRuntime> | undefined
@@ -70,7 +66,12 @@ export class BrowserDatabaseRuntime {
     return { closed: true }
   }
 
-  async withDatabase<T>(filename: string, schemaSql: string, operation: (db: DatabaseAdapter) => T): Promise<T> {
+  async withDatabase<T>(
+    filename: string,
+    schemaSql: string,
+    operation: (db: DatabaseAdapter) => T,
+    onStage?: (stage: WorkspaceDatabaseStage) => void
+  ): Promise<T> {
     validateDatabaseFilename(filename)
     if (this.database) {
       throw new WebRuntimeError(
@@ -79,16 +80,20 @@ export class BrowserDatabaseRuntime {
       )
     }
 
-    const runtime = await this.getInitializedRuntime()
+    const runtime = await this.getInitializedRuntime(onStage)
+    onStage?.('opfs-database-opening')
     const rawDatabase = new runtime.pool.OpfsSAHPoolDb(filename)
     const database = new SqliteWasmDatabaseAdapter(runtime.sqlite3, rawDatabase)
+    onStage?.('opfs-database-opened')
     let operationFailed = false
     let operationError: unknown
     let result!: T
 
     try {
       database.pragma('foreign_keys = ON')
+      onStage?.('schema-initializing')
       database.exec(schemaSql)
+      onStage?.('schema-ready')
       result = operation(database)
     } catch (error) {
       operationFailed = true

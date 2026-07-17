@@ -6,7 +6,7 @@ import {
   type HourlyActivity,
 } from '@openchatlab/core'
 import { WebRuntimeError } from '../runtime-error'
-import type { WorkspaceDatabasePort } from '../storage/workspace-database'
+import type { WorkspaceDatabasePort, WorkspaceDatabaseStage } from '../storage/workspace-database'
 import {
   detectBrowserImportFormat,
   parseBrowserImportSource,
@@ -189,8 +189,8 @@ export class BrowserSessionRuntime {
     }
   }
 
-  listSessions(): Promise<BrowserSessionCatalogItem[]> {
-    return this.catalog.list()
+  listSessions(onStage?: (stage: WorkspaceDatabaseStage) => void): Promise<BrowserSessionCatalogItem[]> {
+    return this.catalog.list(onStage)
   }
 
   getSession(id: string): Promise<BrowserSessionCatalogItem | null> {

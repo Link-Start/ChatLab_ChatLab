@@ -29,7 +29,13 @@ async function createMemoryRuntime(): Promise<{
     getFileNames: () => [...filenames],
   } as unknown as SAHPoolUtil
   return {
-    runtime: new BrowserDatabaseRuntime(async () => ({ sqlite3, pool })),
+    runtime: new BrowserDatabaseRuntime(async (onStage) => {
+      onStage?.('sqlite-initializing')
+      onStage?.('sqlite-ready')
+      onStage?.('opfs-pool-initializing')
+      onStage?.('opfs-pool-ready')
+      return { sqlite3, pool }
+    }),
     openedDatabases,
     filenames,
   }
@@ -71,6 +77,7 @@ describe('BrowserDatabaseRuntime', () => {
 
   it('runs scoped workspace operations, grows the pool, and deletes only a closed named database', async () => {
     const { runtime, openedDatabases, filenames } = await createMemoryRuntime()
+    const stages: string[] = []
 
     const count = await runtime.withDatabase(
       '/catalog.db',
@@ -78,10 +85,21 @@ describe('BrowserDatabaseRuntime', () => {
       (db) => {
         db.prepare('INSERT INTO item (name) VALUES (?)').run('one')
         return (db.prepare('SELECT COUNT(*) AS count FROM item').get() as { count: number }).count
-      }
+      },
+      (stage) => stages.push(stage)
     )
 
     assert.equal(count, 1)
+    assert.deepEqual(stages, [
+      'sqlite-initializing',
+      'sqlite-ready',
+      'opfs-pool-initializing',
+      'opfs-pool-ready',
+      'opfs-database-opening',
+      'opfs-database-opened',
+      'schema-initializing',
+      'schema-ready',
+    ])
     assert.equal(openedDatabases[0].isOpen(), false)
     assert.deepEqual(await runtime.getDatabaseFilenames(), ['/catalog.db'])
     assert.equal(await runtime.ensureCapacity(12), 12)

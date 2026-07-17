@@ -109,7 +109,11 @@ class FakeSessionRuntime implements WorkerSessionRuntime {
     return { sessionId: 'session-one', formatId: 'chatlab' as const, messageCount: 2, memberCount: 1, skippedCount: 0 }
   }
 
-  async listSessions() {
+  async listSessions(onStage?: (stage: DatabaseOpenStage) => void) {
+    onStage?.('sqlite-ready')
+    onStage?.('opfs-pool-ready')
+    onStage?.('opfs-database-opened')
+    onStage?.('schema-ready')
     return [this.session]
   }
 
@@ -267,6 +271,12 @@ describe('WebRuntimeWorkerController', () => {
         (message) => message.id === 'import-1' && message.type === 'progress' && message.payload.stage === 'parsing'
       ),
       true
+    )
+    assert.deepEqual(
+      sink.messages
+        .filter((message) => message.id === 'list-1' && message.type === 'log')
+        .map((message) => (message.type === 'log' ? message.payload.message : '')),
+      ['sqlite-ready', 'opfs-pool-ready', 'opfs-database-opened', 'schema-ready']
     )
   })
 })
