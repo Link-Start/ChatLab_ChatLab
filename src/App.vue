@@ -24,6 +24,7 @@ import { configureHttpClient } from '@/services/utils/http'
 import { IS_ELECTRON } from '@/utils/platform'
 import { usePlatformService } from '@/services'
 import { resolvePageTransitionKey } from '@/routes/page-transition-key'
+import { useLockScreenBootstrap } from '@/components/lock-screen/bootstrap'
 
 const LockScreen = IS_ELECTRON ? defineAsyncComponent(() => import('@/components/lock-screen/LockScreen.vue')) : null
 
@@ -38,6 +39,7 @@ const apiServerStore = useApiServerStore()
 const { isInitialized } = storeToRefs(sessionStore)
 const route = useRoute()
 const router = useRouter()
+const { isBootstrapMaskVisible, markLockScreenReady } = useLockScreenBootstrap(IS_ELECTRON)
 
 const isLoginPage = computed(() => !IS_ELECTRON && route.name === 'login')
 const pageTransitionKey = computed(() => resolvePageTransitionKey(route))
@@ -213,7 +215,8 @@ onUnmounted(() => {
     <!-- 全局 AI 后台任务条：允许用户离开当前页面后仍然快速返回进行中的对话。 -->
     <GlobalTaskBar />
     <!-- 应用锁覆盖层：最高 z-index，锁定后拦截全部底层操作 -->
-    <LockScreen v-if="IS_ELECTRON" />
+    <LockScreen v-if="IS_ELECTRON" @ready="markLockScreenReady" />
+    <div v-if="isBootstrapMaskVisible" aria-hidden="true" class="fixed inset-0 z-[100000] bg-white dark:bg-page-dark" />
   </UApp>
 </template>
 

@@ -4,8 +4,9 @@ import { useI18n } from 'vue-i18n'
 import { useLayoutStore } from '@/stores/layout'
 
 const { t } = useI18n()
+const emit = defineEmits<{ ready: [] }>()
 const layoutStore = useLayoutStore()
-const visible = ref(false)
+const visible = ref(true)
 const isUnlocking = ref(false)
 const password = ref('')
 const showPassword = ref(false)
@@ -19,17 +20,29 @@ const cooldownMessage = computed(() =>
 
 let removeLockListener: (() => void) | null = null
 let cooldownTimer: ReturnType<typeof setInterval> | null = null
+let latestLockEvent: boolean | null = null
 
 onMounted(async () => {
   removeLockListener = window.securityApi.onLockStateChanged((locked) => {
-    if (locked) showOverlay()
+    latestLockEvent = locked
+    if (locked) void showOverlay()
     else hideOverlay()
   })
   try {
-    if ((await window.securityApi.getState()) === 'locked') showOverlay()
+    const initialState = await window.securityApi.getState()
+    // 查询期间若收到更新事件，以事件携带的最新状态为准，避免用旧结果覆盖锁屏。
+    if (latestLockEvent === null) {
+      if (initialState === 'locked') await showOverlay()
+      else hideOverlay()
+    }
   } catch {
-    // 主进程会在下一次状态变化时重新通知锁屏。
+    if (latestLockEvent === null) {
+      visible.value = true
+      errorMessage.value = t('settings.security.lockScreen.errorService')
+    }
   }
+  await nextTick()
+  emit('ready')
 })
 
 onUnmounted(() => {
@@ -64,7 +77,10 @@ async function handleUnlock(): Promise<void> {
   errorMessage.value = ''
   try {
     const result = await window.securityApi.unlock(password.value)
-    if (result.success) return
+    if (result.success) {
+      hideOverlay()
+      return
+    }
     if (result.retryAfterSeconds && result.retryAfterSeconds > 0) {
       password.value = ''
       startCooldownTimer(result.retryAfterSeconds)
