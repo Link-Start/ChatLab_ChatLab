@@ -188,7 +188,7 @@ export class WebRuntimeWorkerController {
       }
       case 'session.list':
         this.assertSupportedBrowser()
-        return this.sessionRuntime.listSessions()
+        return this.sessionRuntime.listSessions((stage) => this.handleDatabaseStage(request, stage))
       case 'session.get':
         this.assertSupportedBrowser()
         return this.sessionRuntime.getSession(request.payload.sessionId)
@@ -213,7 +213,7 @@ export class WebRuntimeWorkerController {
     }
   }
 
-  private handleDatabaseStage(request: RpcRequestEnvelope<'db.open'>, stage: DatabaseOpenStage): void {
+  private handleDatabaseStage(request: RpcRequestEnvelope, stage: DatabaseOpenStage): void {
     this.throwIfCancelled(request.id)
     const progressByStage: Record<DatabaseOpenStage, number> = {
       'sqlite-initializing': 0.2,
@@ -226,7 +226,12 @@ export class WebRuntimeWorkerController {
       'schema-ready': 1,
     }
     this.emitProgress(request, stage, progressByStage[stage])
-    if (stage === 'sqlite-ready' || stage === 'opfs-pool-ready' || stage === 'schema-ready') {
+    if (
+      stage === 'sqlite-ready' ||
+      stage === 'opfs-pool-ready' ||
+      stage === 'opfs-database-opened' ||
+      stage === 'schema-ready'
+    ) {
       this.emitLog(request.id, {
         level: 'info',
         scope: 'web-runtime',

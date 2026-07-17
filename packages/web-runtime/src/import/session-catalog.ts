@@ -1,6 +1,6 @@
 import type { DatabaseAdapter } from '@openchatlab/core'
 import { WebRuntimeError } from '../runtime-error'
-import type { WorkspaceDatabasePort } from '../storage/workspace-database'
+import type { WorkspaceDatabasePort, WorkspaceDatabaseStage } from '../storage/workspace-database'
 import { sessionDatabaseFilename } from './session-paths'
 
 export const WEB_SESSION_CATALOG_FILENAME = '/chatlab-session-catalog.db'
@@ -102,8 +102,8 @@ export class BrowserSessionCatalog {
     await this.deleteRow(id)
   }
 
-  async list(): Promise<BrowserSessionCatalogItem[]> {
-    await this.cleanupInterruptedImports()
+  async list(onStage?: (stage: WorkspaceDatabaseStage) => void): Promise<BrowserSessionCatalogItem[]> {
+    await this.cleanupInterruptedImports(onStage)
     const rows = (await this.withCatalog((db) =>
       db
         .prepare(
@@ -149,9 +149,10 @@ export class BrowserSessionCatalog {
     return row.count
   }
 
-  private async cleanupInterruptedImports(): Promise<void> {
-    const rows = (await this.withCatalog((db) =>
-      db.prepare("SELECT id FROM session_catalog WHERE status = 'importing'").all()
+  private async cleanupInterruptedImports(onStage?: (stage: WorkspaceDatabaseStage) => void): Promise<void> {
+    const rows = (await this.withCatalog(
+      (db) => db.prepare("SELECT id FROM session_catalog WHERE status = 'importing'").all(),
+      onStage
     )) as Array<{ id: string }>
 
     for (const row of rows) {
@@ -173,8 +174,11 @@ export class BrowserSessionCatalog {
     return result
   }
 
-  private withCatalog<T>(operation: (db: DatabaseAdapter) => T): Promise<T> {
-    return this.database.withDatabase(WEB_SESSION_CATALOG_FILENAME, CATALOG_SCHEMA, operation)
+  private withCatalog<T>(
+    operation: (db: DatabaseAdapter) => T,
+    onStage?: (stage: WorkspaceDatabaseStage) => void
+  ): Promise<T> {
+    return this.database.withDatabase(WEB_SESSION_CATALOG_FILENAME, CATALOG_SCHEMA, operation, onStage)
   }
 }
 
