@@ -39,7 +39,8 @@ const apiServerStore = useApiServerStore()
 const { isInitialized } = storeToRefs(sessionStore)
 const route = useRoute()
 const router = useRouter()
-const { isBootstrapMaskVisible, markLockScreenReady } = useLockScreenBootstrap(IS_ELECTRON)
+const { isBootstrapMaskVisible, isApplicationContentVisible, markLockScreenReady, updateLockState } =
+  useLockScreenBootstrap(IS_ELECTRON)
 
 const isLoginPage = computed(() => !IS_ELECTRON && route.name === 'login')
 const pageTransitionKey = computed(() => resolvePageTransitionKey(route))
@@ -85,6 +86,7 @@ async function initializeApp() {
 }
 
 function handleGlobalKeydown(e: KeyboardEvent) {
+  if (!isApplicationContentVisible.value) return
   const isMeta = navigator.platform.toLowerCase().includes('mac') ? e.metaKey : e.ctrlKey
   // Ctrl+, → 打开设置
   if (isMeta && e.key === ',') {
@@ -166,56 +168,58 @@ onUnmounted(() => {
 
 <template>
   <UApp :tooltip="tooltip" :toaster="toaster">
-    <template v-if="isLoginPage">
-      <router-view />
-    </template>
-    <template v-else>
-      <!-- 自定义标题栏 - 拖拽区域 + 窗口控制按钮 -->
-      <TitleBar />
-      <div class="relative flex h-screen w-full overflow-hidden bg-page-bg dark:bg-page-dark">
-        <!-- 主内容区域 -->
-        <template v-if="!isInitialized">
-          <div class="flex h-full w-full items-center justify-center">
-            <div v-if="initError" class="flex flex-col items-center justify-center gap-3 text-center">
-              <UIcon name="i-heroicons-exclamation-triangle" class="h-8 w-8 text-red-500" />
-              <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('common.initFailed') }}</p>
-              <p class="max-w-sm text-xs text-gray-500">{{ initError }}</p>
-              <UButton size="sm" color="primary" variant="soft" @click="initializeApp">
-                {{ t('common.retry') }}
-              </UButton>
+    <template v-if="isApplicationContentVisible">
+      <template v-if="isLoginPage">
+        <router-view />
+      </template>
+      <template v-else>
+        <!-- 自定义标题栏 - 拖拽区域 + 窗口控制按钮 -->
+        <TitleBar />
+        <div class="relative flex h-screen w-full overflow-hidden bg-page-bg dark:bg-page-dark">
+          <!-- 主内容区域 -->
+          <template v-if="!isInitialized">
+            <div class="flex h-full w-full items-center justify-center">
+              <div v-if="initError" class="flex flex-col items-center justify-center gap-3 text-center">
+                <UIcon name="i-heroicons-exclamation-triangle" class="h-8 w-8 text-red-500" />
+                <p class="text-sm text-gray-700 dark:text-gray-300">{{ t('common.initFailed') }}</p>
+                <p class="max-w-sm text-xs text-gray-500">{{ initError }}</p>
+                <UButton size="sm" color="primary" variant="soft" @click="initializeApp">
+                  {{ t('common.retry') }}
+                </UButton>
+              </div>
+              <div v-else class="flex flex-col items-center justify-center text-center">
+                <UIcon name="i-heroicons-arrow-path" class="h-8 w-8 animate-spin text-pink-500" />
+                <p class="mt-2 text-sm text-gray-500">{{ t('common.initializing') }}</p>
+              </div>
             </div>
-            <div v-else class="flex flex-col items-center justify-center text-center">
-              <UIcon name="i-heroicons-arrow-path" class="h-8 w-8 animate-spin text-pink-500" />
-              <p class="mt-2 text-sm text-gray-500">{{ t('common.initializing') }}</p>
-            </div>
-          </div>
-        </template>
-        <template v-else>
-          <Sidebar />
-          <main class="relative flex-1 overflow-hidden">
-            <router-view v-slot="{ Component }">
-              <Transition name="page-fade" mode="out-in">
-                <component :is="Component" :key="pageTransitionKey" />
-              </Transition>
-            </router-view>
-          </main>
-          <DebugToolsPanel v-if="settingsStore.debugMode" />
-        </template>
-      </div>
+          </template>
+          <template v-else>
+            <Sidebar />
+            <main class="relative flex-1 overflow-hidden">
+              <router-view v-slot="{ Component }">
+                <Transition name="page-fade" mode="out-in">
+                  <component :is="Component" :key="pageTransitionKey" />
+                </Transition>
+              </router-view>
+            </main>
+            <DebugToolsPanel v-if="settingsStore.debugMode" />
+          </template>
+        </div>
+      </template>
+      <ScreenCaptureModal
+        :open="layoutStore.showScreenCaptureModal"
+        :image-data="layoutStore.screenCaptureImage"
+        @update:open="(v) => (v ? null : layoutStore.closeScreenCaptureModal())"
+      />
+      <!-- 全局设置弹窗 -->
+      <SettingsModal />
+      <!-- 全局聊天记录查看器 -->
+      <ChatRecordDrawer />
+      <!-- 全局 AI 后台任务条：允许用户离开当前页面后仍然快速返回进行中的对话。 -->
+      <GlobalTaskBar />
     </template>
-    <ScreenCaptureModal
-      :open="layoutStore.showScreenCaptureModal"
-      :image-data="layoutStore.screenCaptureImage"
-      @update:open="(v) => (v ? null : layoutStore.closeScreenCaptureModal())"
-    />
-    <!-- 全局设置弹窗 -->
-    <SettingsModal />
-    <!-- 全局聊天记录查看器 -->
-    <ChatRecordDrawer />
-    <!-- 全局 AI 后台任务条：允许用户离开当前页面后仍然快速返回进行中的对话。 -->
-    <GlobalTaskBar />
     <!-- 应用锁覆盖层：最高 z-index，锁定后拦截全部底层操作 -->
-    <LockScreen v-if="IS_ELECTRON" @ready="markLockScreenReady" />
+    <LockScreen v-if="IS_ELECTRON" @ready="markLockScreenReady" @lock-state-change="updateLockState" />
     <div v-if="isBootstrapMaskVisible" aria-hidden="true" class="fixed inset-0 z-[100000] bg-white dark:bg-page-dark" />
   </UApp>
 </template>

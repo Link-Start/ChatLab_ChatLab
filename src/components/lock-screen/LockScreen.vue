@@ -4,7 +4,10 @@ import { useI18n } from 'vue-i18n'
 import { useLayoutStore } from '@/stores/layout'
 
 const { t } = useI18n()
-const emit = defineEmits<{ ready: [] }>()
+const emit = defineEmits<{
+  ready: []
+  'lock-state-change': [locked: boolean]
+}>()
 const layoutStore = useLayoutStore()
 const visible = ref(true)
 const isUnlocking = ref(false)
@@ -25,18 +28,17 @@ let latestLockEvent: boolean | null = null
 onMounted(async () => {
   removeLockListener = window.securityApi.onLockStateChanged((locked) => {
     latestLockEvent = locked
-    if (locked) void showOverlay()
-    else hideOverlay()
+    void applyLockState(locked)
   })
   try {
     const initialState = await window.securityApi.getState()
     // 查询期间若收到更新事件，以事件携带的最新状态为准，避免用旧结果覆盖锁屏。
     if (latestLockEvent === null) {
-      if (initialState === 'locked') await showOverlay()
-      else hideOverlay()
+      await applyLockState(initialState === 'locked')
     }
   } catch {
     if (latestLockEvent === null) {
+      emit('lock-state-change', true)
       visible.value = true
       errorMessage.value = t('settings.security.lockScreen.errorService')
     }
@@ -49,6 +51,13 @@ onUnmounted(() => {
   removeLockListener?.()
   clearCooldownTimer()
 })
+
+async function applyLockState(locked: boolean): Promise<void> {
+  // 先让 App 卸载业务页面和所有弹窗 Portal，再聚焦密码框，避免焦点陷阱争抢焦点。
+  emit('lock-state-change', locked)
+  if (locked) await showOverlay()
+  else hideOverlay()
+}
 
 async function showOverlay(): Promise<void> {
   visible.value = true
@@ -78,7 +87,7 @@ async function handleUnlock(): Promise<void> {
   try {
     const result = await window.securityApi.unlock(password.value)
     if (result.success) {
-      hideOverlay()
+      await applyLockState(false)
       return
     }
     if (result.retryAfterSeconds && result.retryAfterSeconds > 0) {
