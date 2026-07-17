@@ -43,18 +43,14 @@ export function isInitialized(): boolean {
 export async function initServices(): Promise<void> {
   if (_initialized) return
 
-  const platform = detectPlatform()
-
-  switch (platform) {
-    case 'electron':
-      await initElectronAdapters()
-      break
-    case 'web-serve':
-      await initWebServeAdapters()
-      break
-    case 'web-browser':
-      await initWebBrowserAdapters()
-      break
+  // Keep the compile-time flags in this branch so standalone builds can
+  // eliminate Electron and server-backed adapter chunks completely.
+  if (IS_BROWSER_STANDALONE) {
+    await initWebBrowserAdapters()
+  } else if (IS_ELECTRON) {
+    await initElectronAdapters()
+  } else {
+    await initWebServeAdapters()
   }
 
   _initialized = true
@@ -285,6 +281,6 @@ function installMergeShims(platform: 'electron' | 'web-serve'): void {
 }
 
 async function initWebBrowserAdapters(): Promise<void> {
-  // Phase 6+: BrowserSql Adapter
-  throw new Error('[services] web-browser platform not yet supported')
+  const { registerWebBrowserAdapters } = await import('./browser-runtime/register')
+  registerWebBrowserAdapters({ register: registerAdapter })
 }
