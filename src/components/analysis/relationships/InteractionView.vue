@@ -67,8 +67,8 @@ watch(
 <template>
   <div class="flex h-full flex-col">
     <!-- 顶部工具栏（仅右上角控制） -->
-    <div class="flex items-center justify-end px-4 py-2">
-      <div class="flex items-center gap-4">
+    <div class="flex flex-wrap items-center justify-end px-3 py-2 sm:px-4">
+      <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-4">
         <!-- 布局切换 -->
         <div class="flex items-center gap-2">
           <span class="text-xs text-gray-400">{{ t('views.interaction.layout') }}:</span>

@@ -15,10 +15,14 @@ import type { TimeFilter } from '@openchatlab/shared-types'
 const { t, locale } = useI18n()
 const layoutStore = useLayoutStore()
 
-const props = defineProps<{
-  sessionId: string
-  timeFilter?: TimeFilter
-}>()
+const props = withDefaults(
+  defineProps<{
+    sessionId: string
+    timeFilter?: TimeFilter
+    enableRecordNavigation?: boolean
+  }>(),
+  { enableRecordNavigation: true }
+)
 
 const data = ref<LanguagePreferenceResult | null>(null)
 const isLoading = ref(false)
@@ -38,6 +42,7 @@ async function loadData() {
 }
 
 function handleWordClick(word: string) {
+  if (!props.enableRecordNavigation) return
   layoutStore.openChatRecordDrawer({ keywords: [word] })
 }
 
@@ -49,16 +54,24 @@ watch(
 </script>
 
 <template>
-  <div class="main-content mx-auto max-w-[920px] space-y-6 p-6">
+  <div class="main-content mx-auto max-w-[920px] space-y-6 p-4 sm:p-6">
     <LoadingState v-if="isLoading" :text="t('quotes.languagePreference.loading')" />
     <EmptyState v-else-if="!hasData" :text="t('quotes.languagePreference.empty')" />
 
     <template v-else-if="data">
       <!-- Hero 卡片 -->
-      <LanguagePreferenceCard :data="data" @word-click="handleWordClick" />
+      <LanguagePreferenceCard
+        :data="data"
+        :enable-record-navigation="props.enableRecordNavigation"
+        @word-click="handleWordClick"
+      />
 
       <!-- Section 1: 口头禅 PK -->
-      <CatchphrasePKSection :members="data.members" @word-click="handleWordClick" />
+      <CatchphrasePKSection
+        :members="data.members"
+        :enable-record-navigation="props.enableRecordNavigation"
+        @word-click="handleWordClick"
+      />
 
       <!-- Section 2: 词性图谱 -->
       <PosPortraitSection :members="data.members" />

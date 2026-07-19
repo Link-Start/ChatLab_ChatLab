@@ -13,7 +13,8 @@ import { useSettingsStore } from '@/stores/settings'
 import { useLayoutStore } from '@/stores/layout'
 import { useWordFilterStore } from '@/stores/wordFilter'
 import { useToast } from '@/composables/useToast'
-import { get, post, analyticsPost } from '@/services/utils/http'
+import { useDataService } from '@/services'
+import { get, post } from '@/services/utils/http'
 import type { TimeFilter } from '@openchatlab/shared-types'
 
 const { t } = useI18n()
@@ -29,23 +30,23 @@ interface PosTagInfo {
   meaningful: boolean
 }
 
-interface WordFreqResponse {
-  words: Array<{ word: string; count: number; percentage: number }>
-  totalWords: number
-  totalMessages: number
-  uniqueWords: number
-  posTagStats?: Array<{ tag: string; count: number }>
-}
-
 type PosFilterMode = 'all' | 'meaningful' | 'custom'
 type DictType = 'default' | 'zh-CN' | 'zh-TW'
 
-const props = defineProps<{
-  sessionId: string
-  timeFilter?: TimeFilter
-  memberId?: number | null
-  showSharedTopics?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    sessionId: string
+    timeFilter?: TimeFilter
+    memberId?: number | null
+    showSharedTopics?: boolean
+    enableNodeNlpFeatures?: boolean
+    enableRecordNavigation?: boolean
+  }>(),
+  {
+    enableNodeNlpFeatures: true,
+    enableRecordNavigation: true,
+  }
+)
 
 const isLoading = ref(false)
 // 完整词表：按最大档一次性获取并缓存，切换词数时本地切片，避免重复请求与重复分词
@@ -79,7 +80,7 @@ const wordcloudData = computed<EChartWordcloudData>(() => {
 })
 
 // 词性过滤模式
-const posFilterMode = ref<PosFilterMode>('meaningful')
+const posFilterMode = ref<PosFilterMode>(props.enableNodeNlpFeatures ? 'meaningful' : 'all')
 
 // 停用词过滤开关
 const enableStopwords = ref(true)
@@ -142,7 +143,7 @@ const dictList = ref<Array<{ id: string; label: string; locale: string; download
 const isDictDownloading = ref(false)
 const downloadingDictId = ref<string | null>(null)
 const showDictPromptModal = ref(false)
-const dictListInitialized = ref(false)
+const dictListInitialized = ref(!props.enableNodeNlpFeatures)
 const DICT_PROMPT_DISMISSED_KEY = 'chatlab_zhTW_dict_prompt_dismissed'
 
 const locale = computed(() => settingsStore.locale as 'zh-CN' | 'en-US' | 'zh-TW' | 'ja-JP')
@@ -162,13 +163,16 @@ const hasAnyDict = computed(() => {
   return dictList.value.some((d) => d.downloaded)
 })
 // 非中文语言无需词典即可分析；中文语言在词典列表初始化后可用内置分词器兜底
-const isDictListReady = computed(() => !requiresChineseDict.value || dictListInitialized.value)
+const isDictListReady = computed(
+  () => !props.enableNodeNlpFeatures || !requiresChineseDict.value || dictListInitialized.value
+)
 
 const undownloadedDicts = computed(() => {
   return dictList.value.filter((d) => !d.downloaded)
 })
 
 async function refreshDictList() {
+  if (!props.enableNodeNlpFeatures) return
   try {
     dictList.value = await get('/nlp/dicts')
     // 繁体中文用户自动切换到 zh-TW（如已下载）
@@ -263,6 +267,7 @@ const posTagOptions = computed(() =>
 
 // 加载词性标签定义
 async function loadPosTagDefinitions() {
+  if (!props.enableNodeNlpFeatures) return
   try {
     const tags = await get<PosTagInfo[]>('/nlp/pos-tags')
     posTagDefinitions.value = tags
@@ -279,15 +284,14 @@ async function loadTopicMiniWords() {
   if (!props.sessionId || !isDictListReady.value) return
   const requestId = ++topicMiniWordsRequestId
   try {
-    const result = await analyticsPost<WordFreqResponse>('/nlp/word-frequency', {
-      sessionId: props.sessionId,
+    const result = await useDataService().getWordFrequency(props.sessionId, {
       locale: locale.value,
       timeFilter: props.timeFilter ? { startTs: props.timeFilter.startTs, endTs: props.timeFilter.endTs } : undefined,
       memberId: selectedMemberId.value ?? undefined,
       topN: 50,
       minCount: 2,
-      posFilterMode: 'custom',
-      customPosTags: [...TOPIC_POS_TAGS],
+      posFilterMode: props.enableNodeNlpFeatures ? 'custom' : 'all',
+      customPosTags: props.enableNodeNlpFeatures ? [...TOPIC_POS_TAGS] : undefined,
       enableStopwords: true,
       dictType: selectedDictType.value,
       excludeWords: currentExcludeWords.value.length > 0 ? [...currentExcludeWords.value] : undefined,
@@ -313,15 +317,15 @@ async function loadWordFrequency() {
   const requestId = ++wordFrequencyRequestId
   if (allWords.value.length === 0) isLoading.value = true
   try {
-    const result = await analyticsPost<WordFreqResponse>('/nlp/word-frequency', {
-      sessionId: props.sessionId,
+    const result = await useDataService().getWordFrequency(props.sessionId, {
       locale: locale.value,
       timeFilter: props.timeFilter ? { startTs: props.timeFilter.startTs, endTs: props.timeFilter.endTs } : undefined,
       memberId: selectedMemberId.value ?? undefined,
       topN: MAX_WORDS,
       minCount: 2,
-      posFilterMode: posFilterMode.value,
-      customPosTags: posFilterMode.value === 'custom' ? [...customPosTags.value] : undefined,
+      posFilterMode: props.enableNodeNlpFeatures ? posFilterMode.value : 'all',
+      customPosTags:
+        props.enableNodeNlpFeatures && posFilterMode.value === 'custom' ? [...customPosTags.value] : undefined,
       enableStopwords: enableStopwords.value,
       dictType: selectedDictType.value,
       excludeWords: currentExcludeWords.value.length > 0 ? [...currentExcludeWords.value] : undefined,
@@ -423,12 +427,14 @@ watch(locale, () => {
 
 // 点击词语，打开聊天记录查看器
 function handleWordClick(word: string) {
+  if (!props.enableRecordNavigation) return
   layoutStore.openChatRecordDrawer({
     keywords: [word],
   })
 }
 
 onMounted(async () => {
+  if (!props.enableNodeNlpFeatures) return
   loadPosTagDefinitions()
   await refreshDictList()
   maybeShowDictPrompt()
@@ -436,10 +442,10 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="main-content mx-auto max-w-[920px] space-y-6 p-6">
+  <div class="main-content mx-auto max-w-[920px] space-y-6 p-4 sm:p-6">
     <!-- 中文词库可提升分词效果，但不能阻断后端 fallback 词云结果展示 -->
     <div
-      v-if="requiresChineseDict && !hasAnyDict"
+      v-if="props.enableNodeNlpFeatures && requiresChineseDict && !hasAnyDict"
       class="flex flex-col gap-3 rounded-lg border border-primary-200 bg-primary-50/70 p-4 dark:border-primary-800 dark:bg-primary-950/30 sm:flex-row sm:items-center sm:justify-between"
     >
       <div class="flex min-w-0 items-start gap-3">
@@ -492,7 +498,7 @@ onMounted(async () => {
 
         <!-- 3. 热门词汇分布（词云 + 配置面板） -->
         <SectionCard :title="t('quotes.wordcloud.stats.wordsLabel')" :show-divider="false">
-          <div class="flex gap-6 p-4 sm:p-6">
+          <div class="flex flex-col gap-6 p-4 sm:p-6 lg:flex-row">
             <!-- 左侧：词云图 -->
             <div class="flex min-w-0 flex-1 flex-col">
               <div class="relative w-full" style="aspect-ratio: 16 / 9">
@@ -520,13 +526,13 @@ onMounted(async () => {
                   @word-click="handleWordClick"
                 />
               </div>
-              <p class="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
+              <p v-if="props.enableRecordNavigation" class="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
                 {{ t('quotes.wordcloud.stats.clickHint') }}
               </p>
             </div>
 
             <!-- 右侧：配置面板（平铺展示） -->
-            <div class="w-[280px] shrink-0 space-y-4">
+            <div class="w-full shrink-0 space-y-4 lg:w-[280px]">
               <!-- 显示词数 -->
               <div>
                 <h4 class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-400">
@@ -552,7 +558,7 @@ onMounted(async () => {
               </div>
 
               <!-- 词库选择 -->
-              <div>
+              <div v-if="props.enableNodeNlpFeatures">
                 <h4 class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-400">
                   {{ t('quotes.wordcloud.config.dict') }}
                 </h4>
@@ -578,7 +584,7 @@ onMounted(async () => {
               </div>
 
               <!-- 词性过滤 -->
-              <div>
+              <div v-if="props.enableNodeNlpFeatures">
                 <h4 class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-400">
                   {{ t('quotes.wordcloud.config.posFilter') }}
                 </h4>
@@ -591,7 +597,7 @@ onMounted(async () => {
               </div>
 
               <!-- 自定义词性选择（仅在 custom 模式下显示） -->
-              <div v-if="posFilterMode === 'custom'" class="space-y-2">
+              <div v-if="props.enableNodeNlpFeatures && posFilterMode === 'custom'" class="space-y-2">
                 <div class="flex items-center justify-between">
                   <h4 class="text-xs font-medium text-gray-600 dark:text-gray-400">
                     {{ t('quotes.wordcloud.posFilter.customHint') }}
@@ -668,7 +674,11 @@ onMounted(async () => {
     </template>
 
     <!-- 繁体中文词库下载提示弹窗 -->
-    <UModal v-model:open="showDictPromptModal" :title="t('quotes.wordcloud.dict.promptTitle')">
+    <UModal
+      v-if="props.enableNodeNlpFeatures"
+      v-model:open="showDictPromptModal"
+      :title="t('quotes.wordcloud.dict.promptTitle')"
+    >
       <template #body>
         <div class="space-y-4">
           <p class="text-sm text-gray-600 dark:text-gray-300">

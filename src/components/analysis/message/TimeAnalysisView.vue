@@ -296,7 +296,7 @@ watch(
   <div :class="isLoading ? 'h-full' : ''">
     <LoadingState v-if="isLoading" variant="page" :text="t('common.loading')" />
 
-    <div v-else class="main-content mx-auto max-w-[920px] space-y-6 p-6">
+    <div v-else class="main-content mx-auto max-w-[920px] space-y-6 p-4 sm:p-6">
       <!-- 时间画像卡 -->
       <TimeProfileCard
         v-if="dailyActivity.length > 0"

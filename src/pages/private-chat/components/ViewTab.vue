@@ -5,7 +5,7 @@ import { SectionTabs } from '@/components/navigation'
 import UserSelect from '@/components/common/UserSelect.vue'
 import TypeAnalysisView from '@/components/analysis/message/TypeAnalysisView.vue'
 import TimeAnalysisView from '@/components/analysis/message/TimeAnalysisView.vue'
-import RelationshipView from './view/RelationshipView.vue'
+import PrivateRelationshipView from '@/components/analysis/relationships/PrivateRelationshipView.vue'
 import { WordcloudTab, LanguagePreferenceTab } from '@/components/analysis/quotes'
 import type { TimeFilter } from '@openchatlab/shared-types'
 
@@ -62,7 +62,7 @@ const viewTimeFilter = computed(() => ({
           :session-name="props.sessionName"
           :time-filter="viewTimeFilter"
         />
-        <RelationshipView
+        <PrivateRelationshipView
           v-else-if="activeSubTab === 'relationship'"
           :session-id="props.sessionId"
           :time-filter="props.timeFilter"

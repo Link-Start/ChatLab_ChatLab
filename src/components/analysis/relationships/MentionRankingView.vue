@@ -79,7 +79,7 @@ watch(
 </script>
 
 <template>
-  <div class="main-content mx-auto max-w-3xl p-6">
+  <div class="main-content mx-auto max-w-3xl p-4 sm:p-6">
     <LoadingState v-if="isLoadingMention" :text="t('members.relationships.loading')" />
 
     <RankListPro
