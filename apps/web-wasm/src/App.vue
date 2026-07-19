@@ -22,9 +22,10 @@ import {
 const { t } = useI18n()
 const route = useRoute()
 const sessionStore = useSessionStore()
-const { isInitialized } = storeToRefs(sessionStore)
+const { isInitialized, sessions } = storeToRefs(sessionStore)
 const initError = ref<string | null>(null)
 const pageTransitionKey = computed(() => route.fullPath)
+const shouldShowSidebar = computed(() => route.path !== '/' || sessions.value.length > 0)
 
 useColorMode({
   emitAuto: true,
@@ -104,7 +105,7 @@ onBeforeUnmount(() => {
         </div>
       </template>
       <template v-else>
-        <Sidebar :backend-features="false" />
+        <Sidebar v-if="shouldShowSidebar" :backend-features="false" />
         <main class="relative flex-1 overflow-hidden">
           <router-view v-slot="{ Component }">
             <Transition name="page-fade" mode="out-in">
