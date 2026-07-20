@@ -100,8 +100,23 @@ describe('getBrowserWordFrequency', () => {
       { word: 'project', count: 2, percentage: 33.33 },
     ])
     assert.equal(result.totalMessages, 3)
-    assert.equal(result.totalWords, 7)
-    assert.equal(result.uniqueWords, 3)
+    assert.equal(result.totalWords, 6)
+    assert.equal(result.uniqueWords, 2)
+  })
+
+  it('keeps post-minCount totals when topN truncates the displayed words', () => {
+    const result = getBrowserWordFrequency(database, {
+      sessionId: 'session-one',
+      locale: 'en-US',
+      topN: 1,
+      minCount: 2,
+      posFilterMode: 'all',
+      enableStopwords: false,
+    })
+
+    assert.deepEqual(result.words, [{ word: 'hello', count: 4, percentage: 100 }])
+    assert.equal(result.totalWords, 6)
+    assert.equal(result.uniqueWords, 2)
   })
 
   it('applies member, time, excluded-word, and excluded-message filters', () => {

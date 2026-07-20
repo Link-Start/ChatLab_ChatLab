@@ -68,7 +68,6 @@ export function getBrowserWordFrequency(db: DatabaseAdapter, params: WordFrequen
     .all(...queryParams) as Array<{ content: string }>
   const excludedWords = new Set(excludeWords.map((word) => word.trim().toLocaleLowerCase(locale)).filter(Boolean))
   const frequencies = new Map<string, number>()
-  let totalWords = 0
 
   for (const message of messages) {
     for (const rawWord of tokenize(message.content, locale)) {
@@ -76,12 +75,12 @@ export function getBrowserWordFrequency(db: DatabaseAdapter, params: WordFrequen
       if (excludedWords.has(word)) continue
       if (!isValidWord(word, locale, minWordLength, enableStopwords, isStopword)) continue
       frequencies.set(word, (frequencies.get(word) ?? 0) + 1)
-      totalWords++
     }
   }
 
-  const ranked = [...frequencies.entries()]
-    .filter(([, count]) => count >= minCount)
+  const filteredFrequencies = [...frequencies.entries()].filter(([, count]) => count >= minCount)
+  const totalWords = filteredFrequencies.reduce((sum, [, count]) => sum + count, 0)
+  const ranked = filteredFrequencies
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], locale))
     .slice(0, Math.max(0, topN))
   const rankedTotal = ranked.reduce((sum, [, count]) => sum + count, 0)
@@ -94,6 +93,6 @@ export function getBrowserWordFrequency(db: DatabaseAdapter, params: WordFrequen
     })),
     totalWords,
     totalMessages: messages.length,
-    uniqueWords: frequencies.size,
+    uniqueWords: filteredFrequencies.length,
   }
 }
