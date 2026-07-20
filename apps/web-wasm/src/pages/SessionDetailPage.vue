@@ -9,6 +9,7 @@ import { useSessionAnalysisPageBase } from '@/composables'
 import { useSessionStore } from '@/stores/session'
 import GroupOverview from '../components/session/GroupOverview.vue'
 import PrivateOverview from '../components/session/PrivateOverview.vue'
+import SessionInsights from '../components/session/SessionInsights.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -16,8 +17,10 @@ const router = useRouter()
 const sessionStore = useSessionStore()
 const { currentSessionId } = storeToRefs(sessionStore)
 
-// 闭环一只开放总览；后续洞察能力接通后再增加可交互 Tab，避免展示不可用入口。
-const tabs = [{ id: 'overview', labelKey: 'analysis.tabs.overview', icon: 'i-heroicons-chart-pie' }]
+const tabs = [
+  { id: 'overview', labelKey: 'analysis.tabs.overview', icon: 'i-heroicons-chart-pie' },
+  { id: 'view', labelKey: 'analysis.tabs.view', icon: 'i-heroicons-presentation-chart-bar' },
+]
 
 const {
   activeTab,
@@ -92,7 +95,7 @@ const loadErrorText = computed(() =>
         <LoadingState v-if="isLoading" variant="overlay" :text="t('common.loading')" />
 
         <PrivateOverview
-          v-if="isPrivateChat"
+          v-if="activeTab === 'overview' && isPrivateChat"
           :key="'private-overview-' + currentSessionId"
           :session="session"
           :member-activity="memberActivity"
@@ -105,7 +108,7 @@ const loadErrorText = computed(() =>
           :time-filter="timeFilter"
         />
         <GroupOverview
-          v-else
+          v-else-if="activeTab === 'overview'"
           :key="'group-overview-' + currentSessionId"
           :session="session"
           :member-activity="memberActivity"
@@ -115,6 +118,14 @@ const loadErrorText = computed(() =>
           :time-range="fullTimeRange"
           :filtered-message-count="filteredMessageCount"
           :filtered-member-count="filteredMemberCount"
+          :time-filter="timeFilter"
+        />
+        <SessionInsights
+          v-else-if="activeTab === 'view'"
+          :key="'insights-' + currentSessionId"
+          :session-id="currentSessionId!"
+          :session-name="session.name"
+          :session-type="session.type"
           :time-filter="timeFilter"
         />
       </div>
