@@ -6,9 +6,13 @@ import type { MemberLanguageProfile } from '@/types/quotes/languagePreference'
 
 const { t } = useI18n()
 
-const props = defineProps<{
-  members: MemberLanguageProfile[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    members: MemberLanguageProfile[]
+    enableRecordNavigation?: boolean
+  }>(),
+  { enableRecordNavigation: true }
+)
 
 const emit = defineEmits<{
   wordClick: [word: string]
@@ -95,14 +99,15 @@ function truncateContent(content: string, maxLength = 20): string {
             <div
               v-for="(phrase, index) in displayA"
               :key="phrase.content"
-              class="inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 transition-opacity hover:opacity-75"
+              class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 transition-opacity"
               :class="[
+                props.enableRecordNavigation ? 'cursor-pointer hover:opacity-75' : '',
                 sharedPhrases.has(phrase.content)
                   ? 'bg-pink-50 text-pink-600 ring-1 ring-pink-500/20 dark:bg-pink-500/10 dark:text-pink-400 dark:ring-pink-500/30 shadow-sm'
                   : getRankStyle(index).bg,
               ]"
               :title="phrase.content"
-              @click="emit('wordClick', phrase.content)"
+              @click="props.enableRecordNavigation && emit('wordClick', phrase.content)"
             >
               <span
                 v-if="index < 3"
@@ -131,14 +136,15 @@ function truncateContent(content: string, maxLength = 20): string {
             <div
               v-for="(phrase, index) in displayB"
               :key="phrase.content"
-              class="inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 transition-opacity hover:opacity-75"
+              class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 transition-opacity"
               :class="[
+                props.enableRecordNavigation ? 'cursor-pointer hover:opacity-75' : '',
                 sharedPhrases.has(phrase.content)
                   ? 'bg-pink-50 text-pink-600 ring-1 ring-pink-500/20 dark:bg-pink-500/10 dark:text-pink-400 dark:ring-pink-500/30 shadow-sm'
                   : getRankStyle(index).bg,
               ]"
               :title="phrase.content"
-              @click="emit('wordClick', phrase.content)"
+              @click="props.enableRecordNavigation && emit('wordClick', phrase.content)"
             >
               <span
                 v-if="index < 3"
@@ -159,7 +165,7 @@ function truncateContent(content: string, maxLength = 20): string {
         </div>
       </div>
 
-      <p class="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
+      <p v-if="props.enableRecordNavigation" class="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
         {{ t('quotes.languagePreference.catchphrasePK.hint') }}
       </p>
     </div>

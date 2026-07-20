@@ -282,7 +282,7 @@ function formatDuration(seconds: number): string {
 <template>
   <div :class="isLoading ? 'h-full' : ''">
     <LoadingState v-if="isLoading" variant="page" :text="t('common.loading')" />
-    <div v-else class="main-content mx-auto max-w-[920px] space-y-6 p-6">
+    <div v-else class="main-content mx-auto max-w-[920px] space-y-6 p-4 sm:p-6">
       <!-- 无数据 -->
       <EmptyState
         v-if="stats && !hasData"

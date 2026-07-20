@@ -18,9 +18,13 @@ echarts.use([RadarChart, TooltipComponent, CanvasRenderer])
 const { t } = useI18n()
 const isDark = useDark()
 
-const props = defineProps<{
-  data: LanguagePreferenceResult
-}>()
+const props = withDefaults(
+  defineProps<{
+    data: LanguagePreferenceResult
+    enableRecordNavigation?: boolean
+  }>(),
+  { enableRecordNavigation: true }
+)
 
 const emit = defineEmits<{
   wordClick: [word: string]
@@ -319,9 +323,10 @@ onUnmounted(() => {
                     #{{ cpIdx + 1 }}
                   </span>
                   <span
-                    class="truncate text-sm sm:text-base font-bold text-gray-700 dark:text-gray-200 cursor-pointer hover:opacity-70 transition-opacity"
+                    class="truncate text-sm font-bold text-gray-700 transition-opacity dark:text-gray-200 sm:text-base"
+                    :class="props.enableRecordNavigation ? 'cursor-pointer hover:opacity-70' : ''"
                     :title="cp.content"
-                    @click="emit('wordClick', cp.content)"
+                    @click="props.enableRecordNavigation && emit('wordClick', cp.content)"
                   >
                     「{{ truncate(cp.content, 12) }}」
                   </span>
@@ -413,9 +418,10 @@ onUnmounted(() => {
                 <div class="flex flex-nowrap overflow-hidden items-center gap-x-1.5 mb-2 min-h-[24px]">
                   <template v-for="(tag, idx) in card.detail.tags.slice(0, 6)" :key="tag.word">
                     <span
-                      class="shrink-0 cursor-pointer text-[11px] font-bold transition-opacity hover:opacity-80"
+                      class="shrink-0 text-[11px] font-bold transition-opacity"
+                      :class="props.enableRecordNavigation ? 'cursor-pointer hover:opacity-80' : ''"
                       :style="{ color: tag.color }"
-                      @click="emit('wordClick', tag.word)"
+                      @click="props.enableRecordNavigation && emit('wordClick', tag.word)"
                     >
                       {{ tag.word }}
                     </span>

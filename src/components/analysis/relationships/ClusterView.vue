@@ -280,11 +280,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[920px] p-4 h-full">
+  <div class="mx-auto h-full max-w-[920px] p-2 sm:p-4">
     <ThemeCard class="flex h-full flex-col">
       <!-- 顶部工具栏 -->
       <div
-        class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-page-dark/50"
+        class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-page-dark/50 sm:px-4"
       >
         <div class="flex items-center gap-3">
           <UButtonGroup size="xs">
