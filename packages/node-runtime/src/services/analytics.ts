@@ -160,6 +160,7 @@ export class AnalyticsService {
   private readonly sessionId = randomUUID()
   private appLocale = 'unknown'
   private startupAttempted = false
+  private dailyActivePromise: Promise<void> | null = null
 
   constructor(systemDir: string, options: AnalyticsServiceOptions) {
     this.dataPath = path.join(systemDir, 'analytics.json')
@@ -304,7 +305,20 @@ export class AnalyticsService {
     return delivered
   }
 
-  async trackDailyActive(props?: Record<string, unknown>): Promise<void> {
+  trackDailyActive(props?: Record<string, unknown>): Promise<void> {
+    if (this.dailyActivePromise) {
+      const locale = props?.app_locale ?? props?.locale
+      if (locale !== undefined) this.setAppLocale(String(locale))
+      return this.dailyActivePromise
+    }
+
+    this.dailyActivePromise = this.trackDailyActiveInternal(props).finally(() => {
+      this.dailyActivePromise = null
+    })
+    return this.dailyActivePromise
+  }
+
+  private async trackDailyActiveInternal(props?: Record<string, unknown>): Promise<void> {
     const data = this.load()
     if (!data.enabled) return
 

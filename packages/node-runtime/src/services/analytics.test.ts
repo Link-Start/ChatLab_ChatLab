@@ -256,6 +256,35 @@ test('trackDailyActive reports startup every process and daily activity once per
   }
 })
 
+test('trackDailyActive deduplicates overlapping reports', async () => {
+  const systemDir = createTempSystemDir()
+  const originalFetch = globalThis.fetch
+  const eventNames: string[] = []
+  let resolveStartup: (() => void) | undefined
+  globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
+    eventNames.push(JSON.parse(String(init?.body)).payload.name)
+    if (eventNames.length === 1) {
+      return new Promise<Response>((resolve) => {
+        resolveStartup = () => resolve(new Response(null, { status: 204 }))
+      })
+    }
+    return Promise.resolve(new Response(null, { status: 204 }))
+  }) as typeof fetch
+
+  try {
+    const service = new AnalyticsService(systemDir, createOptions())
+    const first = service.trackDailyActive({ app_locale: 'zh-CN' })
+    const second = service.trackDailyActive({ app_locale: 'en-US' })
+    resolveStartup?.()
+    await Promise.all([first, second])
+
+    assert.deepEqual(eventNames, ['app_started', 'app_active_new'])
+  } finally {
+    globalThis.fetch = originalFetch
+    rmSync(systemDir, { recursive: true, force: true })
+  }
+})
+
 test('track is a no-op without the official build configuration', async () => {
   const systemDir = createTempSystemDir()
   const previousEndpoint = process.env.UMAMI_ENDPOINT
