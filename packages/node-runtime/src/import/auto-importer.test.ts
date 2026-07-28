@@ -39,6 +39,7 @@ function createDeps(options?: {
       return {
         success: true,
         sessionId: sessionId ?? options?.createdSessionId ?? 'created-session',
+        platform: 'qq',
         diagnostics: {
           logFile: null,
           detectedFormat: 'fixture',

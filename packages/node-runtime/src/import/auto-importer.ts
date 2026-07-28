@@ -45,6 +45,7 @@ export interface AutoImportAnalysisDeps extends AutoImportMatcherDeps {
 export interface AutoImportResult {
   success: boolean
   sessionId?: string
+  platform?: string
   importMode?: 'created' | 'incremental'
   matchedBy?: AutoImportMatchMethod
   createReason?: AutoImportCreateReason
@@ -108,6 +109,7 @@ function mapCreateResult(result: StreamImportResult, createReason?: AutoImportCr
   return {
     success: true,
     sessionId: result.sessionId,
+    platform: result.platform,
     importMode: 'created',
     ...(createReason ? { createReason } : {}),
     newMessageCount: result.diagnostics?.messagesWritten ?? 0,

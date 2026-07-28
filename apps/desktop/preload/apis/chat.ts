@@ -10,6 +10,7 @@ import type { ImportProgress } from '../../../../src/types/base'
 interface ChatImportResult {
   success: boolean
   sessionId?: string
+  platform?: string
   error?: string
   importMode?: 'created' | 'incremental'
   matchedBy?: 'source-session-id' | 'stable-id' | 'trailing-messages'

@@ -1,7 +1,7 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type { ImportProgress, ExportProgress } from '../../../src/types/base'
 import type { TokenUsage, AgentRuntimeStatus, SerializedErrorInfo, SecurityApi } from '../shared/types'
-import type { TimeFilter } from '@openchatlab/shared-types'
+import type { AnalyticsEventName, TimeFilter } from '@openchatlab/shared-types'
 
 // 迁移相关类型
 interface MigrationInfo {
@@ -43,6 +43,7 @@ interface ImportDiagnostics {
 interface ChatImportResult {
   success: boolean
   sessionId?: string
+  platform?: string
   error?: string
   importMode?: 'created' | 'incremental'
   matchedBy?: 'source-session-id' | 'stable-id' | 'trailing-messages'
@@ -134,6 +135,7 @@ interface Api {
     getAnalyticsEnabled: () => Promise<boolean>
     setAnalyticsEnabled: (enabled: boolean) => Promise<{ success: boolean }>
     trackDailyActive: (locale: string) => Promise<void>
+    trackAnalyticsEvent: (eventName: AnalyticsEventName, properties?: Record<string, unknown>) => Promise<void>
     relaunch: () => Promise<void>
     getOpenAtLogin: () => Promise<boolean>
     setOpenAtLogin: (enabled: boolean) => Promise<{ success: boolean; error?: string }>
