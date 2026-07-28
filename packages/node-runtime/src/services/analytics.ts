@@ -99,13 +99,15 @@ function normalizeLocale(value: unknown): string {
   return APP_LOCALES.has(trimmed) ? trimmed : 'unknown'
 }
 
-function normalizeAnalyticsChatPlatform(value: unknown): string {
+function normalizeAnalyticsImportPlatform(value: unknown): string {
   if (typeof value !== 'string') return 'unknown'
   const platform = value.trim()
-  const hasUnsafeCharacter = [...platform].some(
+  // Keep custom import-format categories to measure unsupported formats.
+  // This is not a general privacy sanitizer; only paths and control characters are excluded.
+  const hasPathOrControlCharacter = [...platform].some(
     (char) => char === '/' || char === '\\' || char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127
   )
-  return platform.length > 0 && platform.length <= 64 && !hasUnsafeCharacter ? platform : 'unknown'
+  return platform.length > 0 && platform.length <= 64 && !hasPathOrControlCharacter ? platform : 'unknown'
 }
 
 function normalizeDuration(value: unknown): number | null {
@@ -119,7 +121,7 @@ function normalizeEvent(eventName: string, props: Record<string, unknown> = {}):
   const properties: Record<string, AnalyticsPropertyValue> = {}
 
   if (name.startsWith('chat_import_')) {
-    properties.chat_platform = normalizeAnalyticsChatPlatform(props.chat_platform)
+    properties.chat_platform = normalizeAnalyticsImportPlatform(props.chat_platform)
   }
 
   if (name === 'chat_import_completed' || name === 'ai_request_completed') {
