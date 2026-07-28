@@ -91,6 +91,7 @@ export const chatApi = {
     newMessageCount: number
     duplicateCount: number
     totalInFile: number
+    platform?: string
     error?: string
     diagnosis?: { suggestion?: string }
   }> => ipcRenderer.invoke('chat:analyzeIncrementalImport', sessionId, filePath),

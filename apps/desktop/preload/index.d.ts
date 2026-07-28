@@ -97,6 +97,7 @@ interface ChatApi {
     newMessageCount: number
     duplicateCount: number
     totalInFile: number
+    platform?: string
     error?: string
     diagnosis?: { suggestion?: string }
   }>

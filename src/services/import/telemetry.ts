@@ -65,6 +65,11 @@ export class TelemetryImportAdapter implements ImportAdapter {
       : (this.filePlatforms.get(source) ?? 'unknown')
   }
 
+  private rememberPlatform(source: File | string, platform: string): void {
+    if (typeof source === 'string') this.pathPlatforms.set(source, platform)
+    else this.filePlatforms.set(source, platform)
+  }
+
   private async runTrackedImport<T extends { success: boolean; error?: string; platform?: string }>(
     initialPlatform: string,
     operation: () => Promise<T>
@@ -112,9 +117,7 @@ export class TelemetryImportAdapter implements ImportAdapter {
   async detectFormat(file: File | string): Promise<FormatInfo | null> {
     const result = await this.delegate.detectFormat(file)
     if (result) {
-      const platform = result.platform
-      if (typeof file === 'string') this.pathPlatforms.set(file, platform)
-      else this.filePlatforms.set(file, platform)
+      this.rememberPlatform(file, result.platform)
     }
     return result
   }
@@ -157,8 +160,10 @@ export class TelemetryImportAdapter implements ImportAdapter {
     return this.delegate.importDemo(locale, onProgress)
   }
 
-  analyzeIncrementalImport(sessionId: string, file: File | string): Promise<IncrementalAnalysis> {
-    return this.delegate.analyzeIncrementalImport(sessionId, file)
+  async analyzeIncrementalImport(sessionId: string, file: File | string): Promise<IncrementalAnalysis> {
+    const result = await this.delegate.analyzeIncrementalImport(sessionId, file)
+    if (result.platform) this.rememberPlatform(file, result.platform)
+    return result
   }
 
   incrementalImport(

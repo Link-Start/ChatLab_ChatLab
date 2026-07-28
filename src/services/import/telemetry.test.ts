@@ -21,7 +21,7 @@ function createDelegate(
     releaseImportSource: async () => {},
     getSupportedFormats: async () => [],
     importDemo: async () => ({ success: true }),
-    analyzeIncrementalImport: async () => ({ newMessageCount: 0, duplicateCount: 0, totalInFile: 0 }),
+    analyzeIncrementalImport: async () => ({ newMessageCount: 0, duplicateCount: 0, totalInFile: 0, platform: 'qq' }),
     incrementalImport: async () => ({ success: true, newMessageCount: 0 }),
     importDirectory: async () => importResult,
   }
@@ -82,7 +82,7 @@ describe('TelemetryImportAdapter', () => {
       },
     })
 
-    await adapter.detectFormat(file)
+    await adapter.analyzeIncrementalImport('private-session-id', file)
     await adapter.incrementalImport('private-session-id', file)
     await new Promise((resolve) => setTimeout(resolve, 0))
 
