@@ -160,6 +160,8 @@ export class AnalyticsService {
   private readonly sessionId = randomUUID()
   private appLocale = 'unknown'
   private startupAttempted = false
+  // Product constraint: only one ChatLab runtime is expected to use a system directory at a time.
+  // Daily-active deduplication is intentionally process-local unless concurrent runtimes become supported.
   private dailyActivePromise: Promise<void> | null = null
 
   constructor(systemDir: string, options: AnalyticsServiceOptions) {
