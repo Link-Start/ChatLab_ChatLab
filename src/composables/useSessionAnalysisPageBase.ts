@@ -171,7 +171,7 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     if (!activeTabUsesOverviewAnalytics.value) {
       analysisLoadVersion++
       abortAnalyticsRequests()
-      isLoading.value = activeTabUsesTimeRange.value
+      isLoading.value = false
       if (!activeTabUsesTimeRange.value) {
         analysisDataReady = true
         finishSessionSwitchIfReady()

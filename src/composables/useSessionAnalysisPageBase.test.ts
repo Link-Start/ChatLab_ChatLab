@@ -141,7 +141,7 @@ test('session loading coordinates required data, missing ranges, and non-analysi
       currentSessionId,
       selectSession: () => undefined,
       defaultTab: 'insights',
-      validTabIds: ['insights', 'ai-chat'],
+      validTabIds: ['insights', 'ranking', 'ai-chat'],
     })
   )!
 
@@ -194,6 +194,12 @@ test('session loading coordinates required data, missing ranges, and non-analysi
 
   assert.equal(page.memberActivity.value[0]?.name, 'session-three')
   assert.equal(page.isSessionSwitching.value, false)
+
+  page.activeTab.value = 'ranking'
+  await nextTick()
+
+  assert.equal(page.isLoading.value, false)
+  assert.equal(analysisLoadIndex, 3)
 
   page.activeTab.value = 'ai-chat'
   await nextTick()
