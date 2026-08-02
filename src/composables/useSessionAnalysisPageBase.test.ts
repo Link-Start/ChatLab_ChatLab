@@ -48,7 +48,7 @@ test('only the latest analysis load may update results and loading state', async
   let loadIndex = 0
 
   registerAdapter('data', {
-    getSession: async () => null,
+    getSession: async () => ({ id: 'session-one' }),
     getMemberActivity: () => memberLoads[loadIndex]!.promise,
     getHourlyActivity: () => hourlyLoads[loadIndex]!.promise,
     getDailyActivity: () => dailyLoads[loadIndex]!.promise,
@@ -72,6 +72,8 @@ test('only the latest analysis load may update results and loading state', async
     })
   )!
 
+  assert.equal(page.isSessionSwitching.value, true)
+
   const staleLoad = page.loadAnalysisData()
   const latestLoad = page.loadAnalysisData()
 
@@ -83,6 +85,7 @@ test('only the latest analysis load may update results and loading state', async
 
   assert.equal(page.memberActivity.value.length, 0)
   assert.equal(page.isLoading.value, true)
+  assert.equal(page.isSessionSwitching.value, true)
 
   memberLoads[1]!.resolve([createMember('latest')])
   hourlyLoads[1]!.resolve([{ hour: 2, messageCount: 2 }])
@@ -93,4 +96,5 @@ test('only the latest analysis load may update results and loading state', async
   assert.equal(page.memberActivity.value[0]?.name, 'latest')
   assert.deepEqual(page.hourlyActivity.value, [{ hour: 2, messageCount: 2 }])
   assert.equal(page.isLoading.value, false)
+  assert.equal(page.isSessionSwitching.value, false)
 })

@@ -31,6 +31,7 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
 
   const isLoading = ref(true)
   const isInitialLoad = ref(true)
+  const isSessionSwitching = ref(true)
   const session = ref<AnalysisSession | null>(null)
   const memberActivity = ref<MemberActivity[]>([])
   const hourlyActivity = ref<HourlyActivity[]>([])
@@ -119,6 +120,7 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     } finally {
       if (loadVersion === analysisLoadVersion) {
         isLoading.value = false
+        isSessionSwitching.value = false
       }
     }
   }
@@ -129,6 +131,7 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     isInitialLoad.value = true
     await loadBaseData()
     isInitialLoad.value = false
+    if (!session.value) isSessionSwitching.value = false
   }
 
   watch(
@@ -150,6 +153,7 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     currentSessionId,
     () => {
       analysisLoadVersion++
+      isSessionSwitching.value = true
       // 切换会话时，上一会话的分析请求立即作废（切换后子 Tab 会按新 key 重挂并重新取数）。
       abortAnalyticsRequests()
       loadData()
@@ -165,6 +169,7 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     activeTab,
     isLoading,
     isInitialLoad,
+    isSessionSwitching,
     session,
     memberActivity,
     hourlyActivity,
