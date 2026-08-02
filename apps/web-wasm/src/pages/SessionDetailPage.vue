@@ -85,7 +85,7 @@ watch(
 <template>
   <div class="relative flex h-full flex-col dark:bg-page-dark" style="padding-top: var(--titlebar-area-height)">
     <div
-      v-if="isSessionSwitching && session"
+      v-if="isSessionSwitching"
       data-testid="session-switch-loading"
       class="absolute inset-0 z-20 flex cursor-wait items-center justify-center bg-page-bg/15 backdrop-blur-[1.5px] dark:bg-page-dark/15"
       :style="{ paddingTop: 'var(--titlebar-area-height)' }"

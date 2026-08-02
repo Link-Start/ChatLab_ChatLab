@@ -37,7 +37,15 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
   const hourlyActivity = ref<HourlyActivity[]>([])
   const dailyActivity = ref<DailyActivity[]>([])
   const messageTypes = ref<Array<{ type: MessageType; count: number }>>([])
+  let baseLoadVersion = 0
   let analysisLoadVersion = 0
+  let baseDataReady = false
+  let analysisDataReady = false
+
+  function finishSessionSwitchIfReady() {
+    if (!isSessionSwitching.value || !baseDataReady) return
+    if (!session.value || analysisDataReady) isSessionSwitching.value = false
+  }
 
   function resolveActiveTabFromRoute(): string {
     const routeTab = route.query.tab as string | undefined
@@ -78,22 +86,12 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     }
   }
 
-  async function loadBaseData() {
-    if (!currentSessionId.value) return
-
-    try {
-      const sessionData = await useDataService().getSession(currentSessionId.value)
-      session.value = sessionData
-    } catch (error) {
-      console.error('加载基础数据失败:', error)
-    }
-  }
-
   async function loadAnalysisData() {
     const sessionId = currentSessionId.value
     if (!sessionId) return
 
     const loadVersion = ++analysisLoadVersion
+    if (isSessionSwitching.value) analysisDataReady = false
     isLoading.value = true
 
     try {
@@ -120,18 +118,34 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     } finally {
       if (loadVersion === analysisLoadVersion) {
         isLoading.value = false
-        isSessionSwitching.value = false
+        analysisDataReady = true
+        finishSessionSwitchIfReady()
       }
     }
   }
 
   async function loadData() {
-    if (!currentSessionId.value) return
+    const sessionId = currentSessionId.value
+    if (!sessionId) return
 
+    const loadVersion = ++baseLoadVersion
     isInitialLoad.value = true
-    await loadBaseData()
-    isInitialLoad.value = false
-    if (!session.value) isSessionSwitching.value = false
+    try {
+      const sessionData = await useDataService().getSession(sessionId)
+      if (loadVersion !== baseLoadVersion || currentSessionId.value !== sessionId) return
+      session.value = sessionData
+    } catch (error) {
+      if (loadVersion === baseLoadVersion && currentSessionId.value === sessionId) {
+        session.value = null
+        console.error('加载基础数据失败:', error)
+      }
+    } finally {
+      if (loadVersion === baseLoadVersion && currentSessionId.value === sessionId) {
+        isInitialLoad.value = false
+        baseDataReady = true
+        finishSessionSwitchIfReady()
+      }
+    }
   }
 
   watch(
@@ -153,10 +167,12 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     currentSessionId,
     () => {
       analysisLoadVersion++
+      baseDataReady = false
+      analysisDataReady = false
       isSessionSwitching.value = true
       // 切换会话时，上一会话的分析请求立即作废（切换后子 Tab 会按新 key 重挂并重新取数）。
       abortAnalyticsRequests()
-      loadData()
+      void loadData()
     },
     { immediate: true }
   )

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { effectScope, reactive, ref } from 'vue'
+import { effectScope, nextTick, reactive, ref } from 'vue'
 import type { RouteLocationNormalizedLoaded, Router } from 'vue-router'
 import { MessageType } from '@/types/base'
 import type { DailyActivity, HourlyActivity, MemberActivity } from '@/types/analysis'
@@ -28,6 +28,10 @@ function createMember(name: string): MemberActivity {
     messageCount: 1,
     percentage: 100,
   }
+}
+
+async function flushPromises() {
+  await new Promise<void>((resolve) => setImmediate(resolve))
 }
 
 test('only the latest analysis load may update results and loading state', async (t) => {
@@ -96,5 +100,84 @@ test('only the latest analysis load may update results and loading state', async
   assert.equal(page.memberActivity.value[0]?.name, 'latest')
   assert.deepEqual(page.hourlyActivity.value, [{ hour: 2, messageCount: 2 }])
   assert.equal(page.isLoading.value, false)
+  assert.equal(page.isSessionSwitching.value, false)
+})
+
+test('session switch loading waits for both base and analysis data', async (t) => {
+  await t.mock.module('@/utils', {
+    namedExports: {
+      formatLocalizedDate: () => '',
+    },
+  })
+  const { useSessionAnalysisPageBase } = await import('./useSessionAnalysisPageBase')
+
+  const sessionLoads = [createDeferred<{ id: string } | null>(), createDeferred<{ id: string } | null>()]
+  const memberLoads = [createDeferred<MemberActivity[]>(), createDeferred<MemberActivity[]>()]
+  const hourlyLoads = [createDeferred<HourlyActivity[]>(), createDeferred<HourlyActivity[]>()]
+  const dailyLoads = [createDeferred<DailyActivity[]>(), createDeferred<DailyActivity[]>()]
+  const typeLoads = [
+    createDeferred<Array<{ type: MessageType; count: number }>>(),
+    createDeferred<Array<{ type: MessageType; count: number }>>(),
+  ]
+  let sessionLoadIndex = 0
+  let analysisLoadIndex = 0
+
+  registerAdapter('data', {
+    getSession: () => sessionLoads[sessionLoadIndex++]!.promise,
+    getMemberActivity: () => memberLoads[analysisLoadIndex]!.promise,
+    getHourlyActivity: () => hourlyLoads[analysisLoadIndex]!.promise,
+    getDailyActivity: () => dailyLoads[analysisLoadIndex]!.promise,
+    getMessageTypeDistribution: () => typeLoads[analysisLoadIndex++]!.promise,
+  } as unknown as DataAdapter)
+
+  t.mock.method(console, 'warn', () => undefined)
+  const scope = effectScope()
+  t.after(() => scope.stop())
+  const route = reactive({ params: { id: 'session-one' }, query: {} }) as unknown as RouteLocationNormalizedLoaded
+  const router = { replace: async () => undefined } as unknown as Router
+  const currentSessionId = ref<string | null>('session-one')
+  const page = scope.run(() =>
+    useSessionAnalysisPageBase({
+      route,
+      router,
+      currentSessionId,
+      selectSession: () => undefined,
+      defaultTab: 'insights',
+      validTabIds: ['insights'],
+    })
+  )!
+
+  const firstAnalysisLoad = page.loadAnalysisData()
+  memberLoads[0]!.resolve([createMember('session-one')])
+  hourlyLoads[0]!.resolve([])
+  dailyLoads[0]!.resolve([])
+  typeLoads[0]!.resolve([])
+  await firstAnalysisLoad
+
+  assert.equal(page.session.value?.id ?? null, null)
+  assert.equal(page.isSessionSwitching.value, true)
+
+  sessionLoads[0]!.resolve({ id: 'session-one' })
+  await flushPromises()
+
+  assert.equal(page.session.value?.id, 'session-one')
+  assert.equal(page.isSessionSwitching.value, false)
+
+  currentSessionId.value = 'session-two'
+  await nextTick()
+  sessionLoads[1]!.resolve({ id: 'session-two' })
+  await flushPromises()
+
+  assert.equal(page.session.value?.id, 'session-two')
+  assert.equal(page.isSessionSwitching.value, true)
+
+  const secondAnalysisLoad = page.loadAnalysisData()
+  memberLoads[1]!.resolve([createMember('session-two')])
+  hourlyLoads[1]!.resolve([])
+  dailyLoads[1]!.resolve([])
+  typeLoads[1]!.resolve([])
+  await secondAnalysisLoad
+
+  assert.equal(page.memberActivity.value[0]?.name, 'session-two')
   assert.equal(page.isSessionSwitching.value, false)
 })
