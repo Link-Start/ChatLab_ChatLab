@@ -104,7 +104,7 @@ test('only the latest analysis load may update results and loading state', async
   assert.equal(page.isSessionSwitching.value, false)
 })
 
-test('session switch loading waits for required data and falls back without a time range', async (t) => {
+test('session loading coordinates required data, missing ranges, and non-analysis tabs', async (t) => {
   await t.mock.module('@/utils', {
     namedExports: {
       formatLocalizedDate: () => '',
@@ -112,7 +112,7 @@ test('session switch loading waits for required data and falls back without a ti
   })
   const { useSessionAnalysisPageBase } = await import('./useSessionAnalysisPageBase')
 
-  const sessionLoads = createDeferredLoads<{ id: string } | null>(3)
+  const sessionLoads = createDeferredLoads<{ id: string } | null>(4)
   const memberLoads = createDeferredLoads<MemberActivity[]>(3)
   const hourlyLoads = createDeferredLoads<HourlyActivity[]>(3)
   const dailyLoads = createDeferredLoads<DailyActivity[]>(3)
@@ -141,7 +141,7 @@ test('session switch loading waits for required data and falls back without a ti
       currentSessionId,
       selectSession: () => undefined,
       defaultTab: 'insights',
-      validTabIds: ['insights'],
+      validTabIds: ['insights', 'ai-chat'],
     })
   )!
 
@@ -194,4 +194,24 @@ test('session switch loading waits for required data and falls back without a ti
 
   assert.equal(page.memberActivity.value[0]?.name, 'session-three')
   assert.equal(page.isSessionSwitching.value, false)
+
+  page.activeTab.value = 'ai-chat'
+  await nextTick()
+  currentSessionId.value = 'session-four'
+  await nextTick()
+  sessionLoads[3]!.resolve({ id: 'session-four' })
+  await flushPromises()
+
+  assert.equal(page.isSessionSwitching.value, false)
+  assert.equal(page.isLoading.value, false)
+  page.timeRangeValue.value = {
+    startTs: 1,
+    endTs: 2,
+    displayLabel: 'test',
+    isFullRange: false,
+    state: { mode: 'custom', customStart: '1970-01-01', customEnd: '1970-01-01' },
+  }
+  await nextTick()
+
+  assert.equal(analysisLoadIndex, 3)
 })

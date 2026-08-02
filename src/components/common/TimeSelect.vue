@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
 import { formatDateRange } from '@/utils'
@@ -493,6 +493,9 @@ async function loadData() {
 }
 
 onMounted(() => void loadData())
+onBeforeUnmount(() => {
+  loadVersion++
+})
 watch(
   () => buildTimeSelectSourceKey(props.sessionId, props.rangeSource),
   () => {

@@ -105,7 +105,9 @@ const filteredMemberCount = computed(() => {
 
 // 获取对方头像
 const otherMemberAvatar = computed(() => {
-  if (!session.value || memberActivity.value.length === 0) return null
+  if (!session.value) return null
+  if (session.value.memberAvatar) return session.value.memberAvatar
+  if (memberActivity.value.length === 0) return null
 
   // 1. 优先尝试排除 ownerId
   if (session.value.ownerId) {

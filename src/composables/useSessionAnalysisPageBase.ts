@@ -54,6 +54,8 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
   }
 
   const activeTab = ref(resolveActiveTabFromRoute())
+  const activeTabUsesOverviewAnalytics = computed(() => activeTab.value === 'insights')
+  const activeTabUsesTimeRange = computed(() => ['insights', 'ranking'].includes(activeTab.value))
 
   watch(
     activeTab,
@@ -69,12 +71,16 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     { immediate: true }
   )
 
-  const { timeRangeValue, fullTimeRange, availableYears, timeFilter, initialTimeState } = useTimeSelect(route, router, {
-    activeTab,
-    isInitialLoad,
-    currentSessionId,
-    onTimeRangeChange: () => loadAnalysisData(),
-  })
+  const { timeRangeValue, fullTimeRange, availableYears, timeFilter, initialTimeState, resetTimeRange } = useTimeSelect(
+    route,
+    router,
+    {
+      activeTab,
+      isInitialLoad,
+      currentSessionId,
+      onTimeRangeChange: () => loadAnalysisData(),
+    }
+  )
 
   function syncSession() {
     const id = route.params.id as string
@@ -91,6 +97,13 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     if (!sessionId) return
 
     const loadVersion = ++analysisLoadVersion
+    if (!activeTabUsesOverviewAnalytics.value) {
+      isLoading.value = false
+      analysisDataReady = true
+      finishSessionSwitchIfReady()
+      return
+    }
+
     if (isSessionSwitching.value) analysisDataReady = false
     isLoading.value = true
 
@@ -154,6 +167,22 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     }
   }
 
+  watch(activeTab, () => {
+    if (!activeTabUsesOverviewAnalytics.value) {
+      analysisLoadVersion++
+      abortAnalyticsRequests()
+      isLoading.value = activeTabUsesTimeRange.value
+      if (!activeTabUsesTimeRange.value) {
+        analysisDataReady = true
+        finishSessionSwitchIfReady()
+      }
+      return
+    }
+
+    isLoading.value = true
+    if (currentSessionId.value && timeRangeValue.value) void loadAnalysisData()
+  })
+
   watch(
     () => route.params.id,
     () => {
@@ -173,8 +202,10 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     currentSessionId,
     () => {
       analysisLoadVersion++
+      resetTimeRange()
       baseDataReady = false
-      analysisDataReady = false
+      analysisDataReady = !activeTabUsesTimeRange.value
+      isLoading.value = activeTabUsesOverviewAnalytics.value
       isSessionSwitching.value = true
       // 切换会话时，上一会话的分析请求立即作废（切换后子 Tab 会按新 key 重挂并重新取数）。
       abortAnalyticsRequests()

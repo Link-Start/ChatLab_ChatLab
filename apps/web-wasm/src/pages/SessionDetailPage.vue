@@ -55,7 +55,9 @@ const filteredMessageCount = computed(() =>
 )
 const filteredMemberCount = computed(() => memberActivity.value.filter((member) => member.messageCount > 0).length)
 const otherMemberAvatar = computed(() => {
-  if (!session.value || memberActivity.value.length === 0) return null
+  if (!session.value) return null
+  if (session.value.memberAvatar) return session.value.memberAvatar
+  if (memberActivity.value.length === 0) return null
 
   if (session.value.ownerId) {
     const otherMember = memberActivity.value.find((member) => member.platformId !== session.value?.ownerId)
