@@ -20,6 +20,10 @@ function createDeferred<T>(): Deferred<T> {
   return { promise, resolve }
 }
 
+function createDeferredLoads<T>(count: number): Deferred<T>[] {
+  return Array.from({ length: count }, () => createDeferred<T>())
+}
+
 function createMember(name: string): MemberActivity {
   return {
     memberId: 1,
@@ -42,13 +46,10 @@ test('only the latest analysis load may update results and loading state', async
   })
   const { useSessionAnalysisPageBase } = await import('./useSessionAnalysisPageBase')
 
-  const memberLoads = [createDeferred<MemberActivity[]>(), createDeferred<MemberActivity[]>()]
-  const hourlyLoads = [createDeferred<HourlyActivity[]>(), createDeferred<HourlyActivity[]>()]
-  const dailyLoads = [createDeferred<DailyActivity[]>(), createDeferred<DailyActivity[]>()]
-  const typeLoads = [
-    createDeferred<Array<{ type: MessageType; count: number }>>(),
-    createDeferred<Array<{ type: MessageType; count: number }>>(),
-  ]
+  const memberLoads = createDeferredLoads<MemberActivity[]>(2)
+  const hourlyLoads = createDeferredLoads<HourlyActivity[]>(2)
+  const dailyLoads = createDeferredLoads<DailyActivity[]>(2)
+  const typeLoads = createDeferredLoads<Array<{ type: MessageType; count: number }>>(2)
   let loadIndex = 0
 
   registerAdapter('data', {
@@ -103,7 +104,7 @@ test('only the latest analysis load may update results and loading state', async
   assert.equal(page.isSessionSwitching.value, false)
 })
 
-test('session switch loading waits for both base and analysis data', async (t) => {
+test('session switch loading waits for required data and falls back without a time range', async (t) => {
   await t.mock.module('@/utils', {
     namedExports: {
       formatLocalizedDate: () => '',
@@ -111,14 +112,11 @@ test('session switch loading waits for both base and analysis data', async (t) =
   })
   const { useSessionAnalysisPageBase } = await import('./useSessionAnalysisPageBase')
 
-  const sessionLoads = [createDeferred<{ id: string } | null>(), createDeferred<{ id: string } | null>()]
-  const memberLoads = [createDeferred<MemberActivity[]>(), createDeferred<MemberActivity[]>()]
-  const hourlyLoads = [createDeferred<HourlyActivity[]>(), createDeferred<HourlyActivity[]>()]
-  const dailyLoads = [createDeferred<DailyActivity[]>(), createDeferred<DailyActivity[]>()]
-  const typeLoads = [
-    createDeferred<Array<{ type: MessageType; count: number }>>(),
-    createDeferred<Array<{ type: MessageType; count: number }>>(),
-  ]
+  const sessionLoads = createDeferredLoads<{ id: string } | null>(3)
+  const memberLoads = createDeferredLoads<MemberActivity[]>(3)
+  const hourlyLoads = createDeferredLoads<HourlyActivity[]>(3)
+  const dailyLoads = createDeferredLoads<DailyActivity[]>(3)
+  const typeLoads = createDeferredLoads<Array<{ type: MessageType; count: number }>>(3)
   let sessionLoadIndex = 0
   let analysisLoadIndex = 0
 
@@ -179,5 +177,21 @@ test('session switch loading waits for both base and analysis data', async (t) =
   await secondAnalysisLoad
 
   assert.equal(page.memberActivity.value[0]?.name, 'session-two')
+  assert.equal(page.isSessionSwitching.value, false)
+
+  currentSessionId.value = 'session-three'
+  await nextTick()
+  sessionLoads[2]!.resolve({ id: 'session-three' })
+  await flushPromises()
+
+  assert.equal(page.isSessionSwitching.value, true)
+  page.handleTimeRangeInitialized(false)
+  memberLoads[2]!.resolve([createMember('session-three')])
+  hourlyLoads[2]!.resolve([])
+  dailyLoads[2]!.resolve([])
+  typeLoads[2]!.resolve([])
+  await flushPromises()
+
+  assert.equal(page.memberActivity.value[0]?.name, 'session-three')
   assert.equal(page.isSessionSwitching.value, false)
 })

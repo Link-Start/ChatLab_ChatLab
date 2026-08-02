@@ -37,6 +37,7 @@ const {
   fullTimeRange,
   timeFilter,
   initialTimeState,
+  handleTimeRangeInitialized,
 } = useSessionAnalysisPageBase({
   route,
   router,
@@ -113,6 +114,7 @@ watch(
         :initial-time-state="initialTimeState"
         :show-session-actions="false"
         @update:full-range="fullTimeRange = $event"
+        @time-range-initialized="handleTimeRangeInitialized"
       />
 
       <div class="relative min-h-0 flex-1" :class="activeTab === 'ai-chat' ? 'overflow-hidden' : 'overflow-y-auto'">

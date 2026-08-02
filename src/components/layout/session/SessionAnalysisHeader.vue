@@ -39,6 +39,7 @@ const emit = defineEmits<{
   (e: 'openChatRecord'): void
   (e: 'update:fullRange', value: { start: number; end: number } | null): void
   (e: 'update:availableYears', value: number[]): void
+  (e: 'timeRangeInitialized', hasRange: boolean): void
 }>()
 
 const { t } = useI18n()
@@ -116,6 +117,7 @@ const navigationItems = computed(() =>
           size="sm"
           @update:full-range="emit('update:fullRange', $event)"
           @update:available-years="emit('update:availableYears', $event)"
+          @initialization-complete="emit('timeRangeInitialized', $event)"
         />
       </div>
     </div>

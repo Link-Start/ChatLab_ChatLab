@@ -87,6 +87,7 @@ const {
   timeFilter,
   initialTimeState,
   loadData,
+  handleTimeRangeInitialized,
 } = useSessionAnalysisPageBase({
   route,
   router,
@@ -140,6 +141,7 @@ const filteredMemberCount = computed(() => {
         @open-chat-record="openChatRecordViewer"
         @update:full-range="fullTimeRange = $event"
         @update:available-years="availableYears = $event"
+        @time-range-initialized="handleTimeRangeInitialized"
       />
 
       <!-- Tab Content -->

@@ -81,6 +81,7 @@ const {
   timeFilter,
   initialTimeState,
   loadAnalysisData,
+  handleTimeRangeInitialized,
 } = useSessionAnalysisPageBase({
   route,
   router,
@@ -157,6 +158,7 @@ const otherMemberAvatar = computed(() => {
         @open-member-management="showMemberManagementModal = true"
         @open-chat-record="openChatRecordViewer"
         @update:full-range="fullTimeRange = $event"
+        @time-range-initialized="handleTimeRangeInitialized"
       />
 
       <!-- Tab Content -->

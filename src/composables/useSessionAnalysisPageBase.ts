@@ -124,6 +124,12 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     }
   }
 
+  function handleTimeRangeInitialized(hasRange: boolean) {
+    if (hasRange || !isSessionSwitching.value) return
+    timeRangeValue.value = null
+    void loadAnalysisData()
+  }
+
   async function loadData() {
     const sessionId = currentSessionId.value
     if (!sessionId) return
@@ -199,6 +205,7 @@ export function useSessionAnalysisPageBase(options: UseSessionAnalysisPageBaseOp
     syncSession,
     loadData,
     loadAnalysisData,
+    handleTimeRangeInitialized,
   }
 }
 
