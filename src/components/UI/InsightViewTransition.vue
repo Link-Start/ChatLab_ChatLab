@@ -2,6 +2,7 @@
 import { computed, inject, nextTick, onBeforeUnmount, provide, ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import InsightLoadingDots from './InsightLoadingDots.vue'
+import { insightViewLoadingCoordinatorKey } from './insight-view-loading'
 
 type PaneId = 'primary' | 'secondary'
 type TransitionPhase = 'idle' | 'waiting' | 'revealing'
@@ -26,7 +27,7 @@ const pendingPane = computed<PaneId>(() => (activePane.value === 'primary' ? 'se
 const isTransitioning = computed(() => phase.value !== 'idle')
 const showIndicator = computed(() => phase.value === 'waiting' && !sessionSwitchLoading?.value)
 
-provide('insight-subtab-page-loading', {
+provide(insightViewLoadingCoordinatorKey, {
   register: registerPageLoader,
   suppress: isTransitioning,
 })

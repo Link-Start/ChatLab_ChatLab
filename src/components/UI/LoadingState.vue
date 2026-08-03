@@ -4,13 +4,8 @@
  * 支持行内加载、页面加载和蒙层覆盖
  */
 
-import { computed, inject, onMounted, onUnmounted } from 'vue'
-import type { Ref } from 'vue'
-
-interface PageLoadingCoordinator {
-  register: () => () => void
-  suppress?: Ref<boolean>
-}
+import { computed, ref } from 'vue'
+import { useInsightViewLoading } from './insight-view-loading'
 
 const props = withDefaults(
   defineProps<{
@@ -40,21 +35,10 @@ const containerClass = computed(() => {
   }
 })
 
-const pageLoadingCoordinator = inject<PageLoadingCoordinator | null>('insight-subtab-page-loading', null)
+const pageLoadingCoordinator = useInsightViewLoading(ref(true))
 const isCoordinatedPageLoading = computed(
   () => pageLoadingCoordinator !== null && (pageLoadingCoordinator.suppress?.value ?? true)
 )
-let unregisterFromCoordinator: (() => void) | null = null
-
-onMounted(() => {
-  if (!pageLoadingCoordinator) return
-  unregisterFromCoordinator = pageLoadingCoordinator.register()
-})
-
-onUnmounted(() => {
-  unregisterFromCoordinator?.()
-  unregisterFromCoordinator = null
-})
 </script>
 
 <template>
