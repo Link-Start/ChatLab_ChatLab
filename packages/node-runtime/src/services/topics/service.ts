@@ -592,7 +592,8 @@ export function createChatTopicService(deps: ChatTopicServiceDeps): ChatTopicSer
   }
 
   async function prepareSessionDelete(sessionId: string): Promise<void> {
-    preemptedRunId = null
+    const preemptedRun = preemptedRunId ? store.getRun(preemptedRunId) : null
+    if (preemptedRun?.sessionId === sessionId) preemptedRunId = null
     if (activeExecution) {
       const activeRun = store.getRun(activeExecution.runId)
       if (activeRun?.sessionId === sessionId) {

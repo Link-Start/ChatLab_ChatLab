@@ -342,7 +342,7 @@ test('a paused model request resumes from the persisted day checkpoint', async (
   }
 })
 
-test('interactive AI work preempts topic generation and then resumes it automatically', async () => {
+test('interactive AI work resumes topic generation after another session is deleted', async () => {
   let calls = 0
   const modelClient: ChatTopicModelClient = {
     modelId: 'test/model',
@@ -391,6 +391,7 @@ test('interactive AI work preempts topic generation and then resumes it automati
     await waitUntil(() => calls === 1)
     const release = chatTopicWorkCoordinator.beginInteractiveWork()
     await waitUntil(() => service.getRun('group', run.id)?.status === 'pending')
+    await chatTopicWorkCoordinator.prepareSessionDelete('unrelated-session')
     release()
     const completed = await waitForRun(service, 'group', run.id, 'completed')
     assert.equal(completed.modelCalls, 2)
