@@ -223,7 +223,7 @@ export function createChatTopicService(deps: ChatTopicServiceDeps): ChatTopicSer
     const snapshot = store.getDay(sessionId, dayKey)
     if (!snapshot) return null
     const source = loadTopicSourceDay(deps.runtime.ensureReadonly(sessionId), dayKey, timezone)
-    store.markDayStale(sessionId, dayKey, source.sourceSignature, timezone, now())
+    store.refreshDayStatus(sessionId, dayKey, source.sourceSignature, timezone, now())
     return store.getDay(sessionId, dayKey)
   }
 
