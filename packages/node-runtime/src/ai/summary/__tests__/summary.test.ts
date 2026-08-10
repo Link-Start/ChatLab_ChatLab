@@ -129,6 +129,25 @@ describe('generateSessionSummary', () => {
     )
   })
 
+  it('keeps every prompt bounded while summarizing a very large segment', async () => {
+    const messages: SummaryMessage[] = Array.from({ length: 960 }, (_, index) => ({
+      senderName: `User${index % 10}`,
+      content: `Message ${index} ${'x'.repeat(1_000)}`,
+    }))
+    const prompts: string[] = []
+    const deps = mockDeps(messages)
+    deps.llmComplete = async (_systemPrompt, userPrompt) => {
+      prompts.push(userPrompt)
+      return 'S'.repeat(120)
+    }
+
+    const result = await generateSessionSummary(deps, 9)
+
+    assert.equal(result.success, true)
+    assert.ok(prompts.length > 0)
+    assert.ok(Math.max(...prompts.map((prompt) => prompt.length)) < 8_500)
+  })
+
   const errorCases: Array<{ name: string; messages: SummaryMessage[] | null }> = [
     { name: 'returns error when too few messages', messages: [{ senderName: 'A', content: 'hi' }] },
     { name: 'returns error when session not found', messages: null },
