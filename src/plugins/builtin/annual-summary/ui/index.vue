@@ -1,32 +1,36 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { useLayoutStore } from '@/stores/layout'
 import type { AnnualSummaryFetchOptions } from '@/services/data/types'
 import type { AnnualSummaryResponse } from '@openchatlab/shared-types'
 import LoadingState from '@/components/UI/LoadingState.vue'
-import { useDataService } from '@/services'
 import { reportError } from '@/services/log-report'
-import { useInsightTimeRange, watchInsightSettingsClose } from '../insight-time-range'
+import { useUiHostContext } from '@/plugins/insight-vue'
+import { ANNUAL_SUMMARY_UI_SERVICE } from '../service'
 import AnnualInsightBoard from './components/AnnualInsightBoard.vue'
 
 const { t } = useI18n()
-const layoutStore = useLayoutStore()
-const { showSettings } = storeToRefs(layoutStore)
+const uiHost = useUiHostContext()
+const insightScope = uiHost.insightScope
+const annualSummaryService = uiHost.services.get(ANNUAL_SUMMARY_UI_SERVICE)
 const currentYear = new Date().getFullYear()
-const timeRange = useInsightTimeRange()
+const scopeSnapshot = ref(insightScope.getSnapshot())
 const response = ref<AnnualSummaryResponse | null>(null)
 const errorMessage = ref('')
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 let requestToken = 0
 
+const unsubscribeScope = insightScope.subscribe(() => {
+  scopeSnapshot.value = insightScope.getSnapshot()
+})
+const unsubscribeSettings = annualSummaryService.subscribeOwnerSettingsClosed(() => void loadSummary(false))
+
 const requestOptions = computed<AnnualSummaryFetchOptions | null>(() => {
-  const state = timeRange.modelValue.value?.state
-  if (!state) return null
-  return state.mode === 'recent'
-    ? { mode: 'recent', days: 365, acceptStale: true }
-    : { mode: 'year', year: state.year ?? currentYear, acceptStale: true }
+  const time = scopeSnapshot.value.time
+  if (!time) return null
+  if (time.mode === 'recent') return { mode: 'recent', days: 365, acceptStale: true }
+  if (time.mode === 'year') return { mode: 'year', year: time.year ?? currentYear, acceptStale: true }
+  return null
 })
 const requestKey = computed(() => JSON.stringify(requestOptions.value))
 const ownerIssueCount = computed(
@@ -42,7 +46,7 @@ const hasNoAnalyzableOwner = computed(
     ownerIssueCount.value > 0
 )
 const selectedYear = computed(() =>
-  timeRange.modelValue.value?.state.mode === 'year' ? timeRange.modelValue.value.state.year : undefined
+  scopeSnapshot.value.time?.mode === 'year' ? scopeSnapshot.value.time.year : undefined
 )
 const latestYearSuggestion = computed(() => {
   const year = selectedYear.value
@@ -61,9 +65,12 @@ watch(
   },
   { immediate: true }
 )
-watchInsightSettingsClose(showSettings, () => void loadSummary(false))
-
-onBeforeUnmount(clearPoll)
+onBeforeUnmount(() => {
+  requestToken++
+  clearPoll()
+  unsubscribeScope()
+  unsubscribeSettings()
+})
 
 async function loadSummary(recompute: boolean): Promise<void> {
   const options = requestOptions.value
@@ -71,13 +78,11 @@ async function loadSummary(recompute: boolean): Promise<void> {
   const token = ++requestToken
   errorMessage.value = ''
   try {
-    const result = recompute
-      ? await useDataService().recomputeAnnualSummary(options)
-      : await useDataService().getAnnualSummary(options)
+    const result = recompute ? await annualSummaryService.recompute(options) : await annualSummaryService.get(options)
     if (token !== requestToken) return
     response.value = result
     if (result.metrics) {
-      timeRange.setAvailableYears(result.availableDataYears)
+      insightScope.setAvailableTimeYears(result.availableDataYears)
     }
     if (result.task.status === 'running') schedulePoll()
   } catch (error) {
@@ -102,11 +107,11 @@ function clearPoll(): void {
 function switchToLatestYear(): void {
   const year = response.value?.latestDataYear
   if (!year) return
-  timeRange.switchToYear(year)
+  insightScope.switchTimeToYear(year)
 }
 
 function openSessions(): void {
-  layoutStore.openSettings('data', 'missing-owner')
+  annualSummaryService.openOwnerSettings()
 }
 </script>
 

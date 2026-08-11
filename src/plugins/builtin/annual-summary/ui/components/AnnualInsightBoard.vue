@@ -10,8 +10,8 @@ import type {
 import { MessageType, getMessageTypeName } from '@/types/base'
 import { formatDateRange } from '@/utils'
 import { CardDecoration, ThemeCard } from '@/components/UI'
-import { deriveAnnualActivityRhythm } from '../annual-activity-rhythm'
-import InsightCalendarGrid from '../../components/InsightCalendarGrid.vue'
+import { deriveAnnualActivityRhythm } from '../../domain/activity-rhythm'
+import InsightCalendarGrid from './InsightCalendarGrid.vue'
 import AnnualMonthlyTrend from './AnnualMonthlyTrend.vue'
 
 const props = defineProps<{
