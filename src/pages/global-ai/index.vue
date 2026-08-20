@@ -12,6 +12,7 @@ import AIChatComposer from '@/components/AIChat/input/AIChatComposer.vue'
 import { useChatScroll } from '@/components/AIChat/composables/useChatScroll'
 import { useProgressiveChatHistory } from '@/components/AIChat/composables/useProgressiveChatHistory'
 import { groupMessagesToQAPairs } from '@/components/AIChat/utils/chatMessages'
+import PageHeader from '@/components/layout/PageHeader.vue'
 import { useAIService } from '@/services'
 import type { AIChat } from '@/services/ai/types'
 import { useAIChatStore } from '@/stores/aiChat'
@@ -178,149 +179,148 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex h-full min-w-0 bg-page-bg dark:bg-page-dark">
-    <ConversationList
-      session-id=""
-      :active-id="currentAIChatId"
-      :conversations="conversations"
-      :loading="conversationsLoading"
-      :disabled="isAIThinking"
-      embedded
-      @select="selectConversation"
-      @create="startNewConversation"
-      @rename="renameConversation"
-      @delete="deleteConversation"
+  <div
+    class="flex h-full min-w-0 flex-col bg-page-bg text-gray-900 dark:bg-page-dark dark:text-gray-100"
+    style="padding-top: var(--titlebar-area-height)"
+  >
+    <PageHeader
+      :title="t('ai.global.title')"
+      :description="t('ai.global.subtitle')"
+      icon="i-heroicons-sparkles"
+      icon-class="bg-primary-600 text-white dark:bg-primary-500 dark:text-white"
+      size="compact"
     />
 
-    <section class="flex min-w-0 flex-1 flex-col border-l border-gray-200 dark:border-gray-800">
-      <header class="flex h-14 shrink-0 items-center border-b border-gray-200 px-5 dark:border-gray-800">
-        <div class="flex min-w-0 items-center gap-2.5">
-          <div
-            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-300"
-          >
-            <UIcon name="i-heroicons-sparkles" class="h-4 w-4" />
-          </div>
-          <div class="min-w-0">
-            <h1 class="truncate text-sm text-gray-900 dark:text-white">{{ t('ai.global.title') }}</h1>
-            <p class="truncate text-xs text-gray-400 dark:text-gray-500">{{ t('ai.global.subtitle') }}</p>
-          </div>
-        </div>
-      </header>
+    <div class="flex min-h-0 min-w-0 flex-1">
+      <ConversationList
+        session-id=""
+        :active-id="currentAIChatId"
+        :conversations="conversations"
+        :loading="conversationsLoading"
+        :disabled="isAIThinking"
+        embedded
+        @select="selectConversation"
+        @create="startNewConversation"
+        @rename="renameConversation"
+        @delete="deleteConversation"
+      />
 
-      <div class="relative min-h-0 flex-1">
-        <div ref="messagesContainer" class="absolute inset-0 overflow-y-auto px-5 py-6">
-          <div v-if="initializing" class="flex h-full items-center justify-center">
-            <UIcon name="i-lucide-loader-2" class="h-5 w-5 animate-spin text-gray-400" />
-          </div>
+      <section class="flex min-w-0 flex-1 flex-col border-l border-gray-200 dark:border-gray-800">
+        <div class="relative min-h-0 flex-1">
+          <div ref="messagesContainer" class="absolute inset-0 overflow-y-auto px-5 py-6">
+            <div v-if="initializing" class="flex h-full items-center justify-center">
+              <UIcon name="i-lucide-loader-2" class="h-5 w-5 animate-spin text-gray-400" />
+            </div>
 
-          <div
-            v-else-if="messages.length === 0"
-            class="mx-auto flex h-full max-w-lg flex-col items-center justify-center pb-16 text-center"
-          >
             <div
-              class="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-500 dark:bg-primary-500/10 dark:text-primary-300"
+              v-else-if="messages.length === 0"
+              class="mx-auto flex h-full max-w-lg flex-col items-center justify-center pb-16 text-center"
             >
-              <UIcon name="i-heroicons-chat-bubble-left-right" class="h-6 w-6" />
-            </div>
-            <h2 class="text-base text-gray-800 dark:text-gray-100">{{ t('ai.global.empty.title') }}</h2>
-            <p class="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
-              {{ t('ai.global.empty.description') }}
-            </p>
-          </div>
-
-          <div v-else class="mx-auto max-w-3xl space-y-4">
-            <div v-if="hasOlderPairs" class="flex justify-center pb-2">
-              <button
-                type="button"
-                class="flex h-8 items-center gap-1.5 rounded-full px-3 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                @click="loadOlderPairs"
+              <div
+                class="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-500 dark:bg-primary-500/10 dark:text-primary-300"
               >
-                <UIcon name="i-heroicons-arrow-up" class="h-3.5 w-3.5" />
-                {{ t('ai.chat.history.loadEarlier') }}
-              </button>
+                <UIcon name="i-heroicons-chat-bubble-left-right" class="h-6 w-6" />
+              </div>
+              <h2 class="text-base text-gray-800 dark:text-gray-100">{{ t('ai.global.empty.title') }}</h2>
+              <p class="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                {{ t('ai.global.empty.description') }}
+              </p>
             </div>
 
-            <template v-for="pair in visiblePairs" :key="pair.id">
-              <ChatMessage
-                v-if="pair.standalone"
-                :role="pair.standalone.role"
-                :content="pair.standalone.content"
-                :timestamp="pair.standalone.timestamp"
-              />
-              <div v-else class="qa-pair space-y-6 pb-4">
-                <ChatMessage
-                  v-if="pair.user"
-                  :role="pair.user.role"
-                  :message-id="pair.user.id"
-                  :content="pair.user.content"
-                  :timestamp="pair.user.timestamp"
-                  :entity-refs="pair.user.entityRefs"
-                />
-                <ChatMessage
-                  v-if="
-                    pair.assistant &&
-                    (pair.assistant.content || pair.assistant.contentBlocks?.length || !pair.assistant.isStreaming)
-                  "
-                  :role="pair.assistant.role"
-                  :message-id="pair.assistant.id"
-                  :content="pair.assistant.content"
-                  :timestamp="pair.assistant.timestamp"
-                  :is-streaming="pair.assistant.isStreaming"
-                  :process-duration-ms="pair.assistant.processDurationMs"
-                  :content-blocks="pair.assistant.contentBlocks"
-                  :show-capture-button="!pair.assistant.isStreaming"
-                  :active-tool="pair.assistant.isStreaming ? state.currentToolStatus : null"
-                />
-                <AIThinkingIndicator
-                  v-else-if="pair.assistant?.isStreaming"
-                  :current-tool-status="state.currentToolStatus"
-                  :agent-status="state.agentStatus"
-                />
+            <div v-else class="mx-auto max-w-3xl space-y-4">
+              <div v-if="hasOlderPairs" class="flex justify-center pb-2">
+                <button
+                  type="button"
+                  class="flex h-8 items-center gap-1.5 rounded-full px-3 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                  @click="loadOlderPairs"
+                >
+                  <UIcon name="i-heroicons-arrow-up" class="h-3.5 w-3.5" />
+                  {{ t('ai.chat.history.loadEarlier') }}
+                </button>
               </div>
-            </template>
+
+              <template v-for="pair in visiblePairs" :key="pair.id">
+                <ChatMessage
+                  v-if="pair.standalone"
+                  :role="pair.standalone.role"
+                  :content="pair.standalone.content"
+                  :timestamp="pair.standalone.timestamp"
+                />
+                <div v-else class="qa-pair space-y-6 pb-4">
+                  <ChatMessage
+                    v-if="pair.user"
+                    :role="pair.user.role"
+                    :message-id="pair.user.id"
+                    :content="pair.user.content"
+                    :timestamp="pair.user.timestamp"
+                    :entity-refs="pair.user.entityRefs"
+                  />
+                  <ChatMessage
+                    v-if="
+                      pair.assistant &&
+                      (pair.assistant.content || pair.assistant.contentBlocks?.length || !pair.assistant.isStreaming)
+                    "
+                    :role="pair.assistant.role"
+                    :message-id="pair.assistant.id"
+                    :content="pair.assistant.content"
+                    :timestamp="pair.assistant.timestamp"
+                    :is-streaming="pair.assistant.isStreaming"
+                    :process-duration-ms="pair.assistant.processDurationMs"
+                    :content-blocks="pair.assistant.contentBlocks"
+                    :show-capture-button="!pair.assistant.isStreaming"
+                    :active-tool="pair.assistant.isStreaming ? state.currentToolStatus : null"
+                  />
+                  <AIThinkingIndicator
+                    v-else-if="pair.assistant?.isStreaming"
+                    :current-tool-status="state.currentToolStatus"
+                    :agent-status="state.agentStatus"
+                  />
+                </div>
+              </template>
+            </div>
           </div>
+
+          <Transition name="fade-up">
+            <button
+              v-if="showScrollToBottom"
+              type="button"
+              class="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-gray-800/90 px-3 py-1.5 text-xs text-white shadow-lg backdrop-blur-sm hover:bg-gray-700 dark:bg-gray-700/90"
+              @click="handleScrollToBottom"
+            >
+              <UIcon name="i-heroicons-arrow-down" class="h-3.5 w-3.5" />
+              {{ t('ai.chat.scrollToBottom') }}
+            </button>
+          </Transition>
         </div>
 
-        <Transition name="fade-up">
-          <button
-            v-if="showScrollToBottom"
-            type="button"
-            class="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-gray-800/90 px-3 py-1.5 text-xs text-white shadow-lg backdrop-blur-sm hover:bg-gray-700 dark:bg-gray-700/90"
-            @click="handleScrollToBottom"
+        <div class="shrink-0 px-4 pb-4">
+          <div
+            class="mx-auto max-w-3xl overflow-visible rounded-2xl bg-white shadow-[0_2px_14px_rgba(0,0,0,0.04)] ring-1 ring-gray-200/60 transition-all focus-within:ring-primary-500/40 focus-within:shadow-[0_4px_20px_rgba(0,0,0,0.08)] dark:bg-page-dark dark:ring-white/5"
           >
-            <UIcon name="i-heroicons-arrow-down" class="h-3.5 w-3.5" />
-            {{ t('ai.chat.scrollToBottom') }}
-          </button>
-        </Transition>
-      </div>
-
-      <div class="shrink-0 px-4 pb-4">
-        <div
-          class="mx-auto max-w-3xl overflow-visible rounded-2xl bg-white shadow-[0_2px_14px_rgba(0,0,0,0.04)] ring-1 ring-gray-200/60 transition-all focus-within:ring-primary-500/40 focus-within:shadow-[0_4px_20px_rgba(0,0,0,0.08)] dark:bg-page-dark dark:ring-white/5"
-        >
-          <div class="border-b border-gray-100 px-3 py-2 dark:border-gray-800/80">
-            <GlobalEntityPicker v-model="selectedEntities" :disabled="isAIThinking" />
+            <div class="border-b border-gray-100 px-3 py-2 dark:border-gray-800/80">
+              <GlobalEntityPicker v-model="selectedEntities" :disabled="isAIThinking" />
+            </div>
+            <AIChatComposer
+              v-model="input"
+              embedded
+              :disabled="isAIThinking"
+              :status="isAIThinking ? 'streaming' : 'ready'"
+              :placeholder="t('ai.global.input.placeholder')"
+              :send-button-title="t('ai.chat.input.send')"
+              @submit="submit"
+              @stop="aiChatStore.stopGeneration(chatKey)"
+              @keydown="handleKeydown"
+              @composition-start="isComposing = true"
+              @composition-end="isComposing = false"
+            />
+            <ChatStatusBar
+              class="px-2 pb-1.5 pt-0.5"
+              :session-token-usage="state.sessionTokenUsage"
+              :agent-status="state.agentStatus"
+            />
           </div>
-          <AIChatComposer
-            v-model="input"
-            embedded
-            :disabled="isAIThinking"
-            :status="isAIThinking ? 'streaming' : 'ready'"
-            :placeholder="t('ai.global.input.placeholder')"
-            :send-button-title="t('ai.chat.input.send')"
-            @submit="submit"
-            @stop="aiChatStore.stopGeneration(chatKey)"
-            @keydown="handleKeydown"
-            @composition-start="isComposing = true"
-            @composition-end="isComposing = false"
-          />
-          <ChatStatusBar
-            class="px-2 pb-1.5 pt-0.5"
-            :session-token-usage="state.sessionTokenUsage"
-            :agent-status="state.agentStatus"
-          />
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   </div>
 </template>

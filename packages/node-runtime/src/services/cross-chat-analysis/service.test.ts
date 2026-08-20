@@ -5,7 +5,12 @@ import path from 'node:path'
 import test from 'node:test'
 import { CHAT_DB_SCHEMA } from '@openchatlab/core'
 import type { DatabaseAdapter } from '@openchatlab/core'
-import { ChatType, type ContactDetailResponse, type ContactItem } from '@openchatlab/shared-types'
+import {
+  ChatType,
+  type ContactDetailResponse,
+  type ContactItem,
+  type ContactsResponse,
+} from '@openchatlab/shared-types'
 import { openBetterSqliteDatabase } from '../../better-sqlite3-adapter'
 import type { ContactsService } from '../contacts'
 import type { SessionRuntimeAdapter } from '../adapters'
@@ -18,6 +23,7 @@ interface SeedSession {
   id: string
   name: string
   type: 'private' | 'group'
+  ownerPlatformId?: string
   members: Array<{ id: number; platformId: string; name: string }>
   messages: Array<{ id: number; senderId: number; ts: number; content: string }>
 }
@@ -62,11 +68,12 @@ class TestEnvironment {
     const dbPath = path.join(this.dir, `${session.id}.db`)
     const db = openBetterSqliteDatabase(dbPath, { nativeBinding })
     db.exec(CHAT_DB_SCHEMA)
-    db.prepare('INSERT INTO meta (name, platform, type, imported_at) VALUES (?, ?, ?, ?)').run(
+    db.prepare('INSERT INTO meta (name, platform, type, imported_at, owner_id) VALUES (?, ?, ?, ?, ?)').run(
       session.name,
       'test',
       session.type,
-      1780000000
+      1780000000,
+      session.ownerPlatformId ?? null
     )
     for (const member of session.members) {
       db.prepare('INSERT INTO member (id, platform_id, account_name) VALUES (?, ?, ?)').run(
@@ -132,7 +139,7 @@ function detail(
 
 function createFixture(): {
   env: TestEnvironment
-  contactsService: Pick<ContactsService, 'getContactDetail'>
+  contactsService: Pick<ContactsService, 'getContactDetail' | 'getContactsPage'>
 } {
   const env = new TestEnvironment()
   env.seed({
@@ -171,42 +178,80 @@ function createFixture(): {
     messages: [{ id: 1, senderId: 30, ts: 200, content: 'project alpha from another Alice' }],
   })
 
+  const contactItems = [
+    contact({
+      key: 'test:alice',
+      platformId: 'alice',
+      displayName: 'Alice',
+      aliases: ['Ally'],
+      sourceSessions: [
+        { id: 'private-alice', name: 'Alice private', platform: 'test', type: ChatType.PRIVATE },
+        { id: 'group-work', name: 'Work group', platform: 'test', type: ChatType.GROUP },
+      ],
+    }),
+    contact({
+      key: 'test:group-other:alice-other',
+      platformId: 'alice-other',
+      displayName: 'Alice',
+      sessionScoped: true,
+      sessionId: 'group-other',
+      sourceSessions: [{ id: 'group-other', name: 'Other group', platform: 'test', type: ChatType.GROUP }],
+    }),
+  ]
   const contacts = new Map<string, ContactDetailResponse>([
-    [
-      'test:alice',
-      detail(
-        contact({
-          key: 'test:alice',
-          platformId: 'alice',
-          displayName: 'Alice',
-          sourceSessions: [
-            { id: 'private-alice', name: 'Alice private', platform: 'test', type: ChatType.PRIVATE },
-            { id: 'group-work', name: 'Work group', platform: 'test', type: ChatType.GROUP },
-          ],
-        })
-      ),
-    ],
-    [
-      'test:group-other:alice-other',
-      detail(
-        contact({
-          key: 'test:group-other:alice-other',
-          platformId: 'alice-other',
-          displayName: 'Alice',
-          sessionScoped: true,
-          sessionId: 'group-other',
-          sourceSessions: [{ id: 'group-other', name: 'Other group', platform: 'test', type: ChatType.GROUP }],
-        })
-      ),
-    ],
+    ['test:alice', detail(contactItems[0])],
+    ['test:group-other:alice-other', detail(contactItems[1])],
   ])
   return {
     env,
     contactsService: {
       getContactDetail: (key) => contacts.get(key) ?? detail(null),
+      getContactsPage: (options = {}) => {
+        const query = options.query?.trim().toLocaleLowerCase() ?? ''
+        const matches = contactItems.filter((item) => {
+          const values = [item.displayName, ...item.aliases].map((value) => value.toLocaleLowerCase())
+          return !query || values.some((value) => value.includes(query))
+        })
+        return {
+          contacts: matches.map(({ sourceSessions: _sourceSessions, searchText: _searchText, ...item }) => item),
+          cache: { status: 'fresh', computedAt: 1780000000 },
+          pagination: { page: 1, pageSize: 100, total: matches.length, hasMore: false },
+          task: { id: null, status: 'idle', startedAt: null, finishedAt: null, processedSessions: 0, totalSessions: 0 },
+        } as ContactsResponse
+      },
     },
   }
 }
+
+test('contact lookup resolves a unique alias and preserves same-name ambiguity', () => {
+  const { env, contactsService } = createFixture()
+  try {
+    const service = createCrossChatAnalysisService({ adapter: env.adapter, contactsService })
+    assert.deepEqual(service.lookupContact('Ally'), {
+      query: 'Ally',
+      status: 'resolved',
+      cacheStatus: 'fresh',
+      totalCandidates: 1,
+      candidates: [
+        {
+          contactKey: 'test:alice',
+          displayName: 'Alice',
+          platform: 'test',
+          aliases: ['Ally'],
+          sourceSessions: [
+            { id: 'private-alice', name: 'Alice private', type: ChatType.PRIVATE },
+            { id: 'group-work', name: 'Work group', type: ChatType.GROUP },
+          ],
+        },
+      ],
+    })
+    const ambiguous = service.lookupContact('Alice')
+    assert.equal(ambiguous.status, 'ambiguous')
+    assert.equal(ambiguous.totalCandidates, 2)
+  } finally {
+    env.cleanup()
+  }
+})
 
 test('entity resolution uses contact keys and resolves per-session member ids without merging display names', () => {
   const { env, contactsService } = createFixture()
@@ -299,11 +344,82 @@ test('global search scans recent sessions first and reports budget truncation', 
   }
 })
 
-test('search rejects empty keywords and honors interruption before scanning', async () => {
+test('global search applies the relative time range and resolves the owner independently in each session', async () => {
+  const { env, contactsService } = createFixture()
+  const nowSeconds = 10_000_000
+  try {
+    env.seed({
+      id: 'recent-owner-session',
+      name: 'Recent owner session',
+      type: 'group',
+      ownerPlatformId: 'owner-local',
+      members: [
+        { id: 40, platformId: 'owner-local', name: 'Me' },
+        { id: 41, platformId: 'other', name: 'Other' },
+      ],
+      messages: [
+        { id: 1, senderId: 40, ts: nowSeconds - 100, content: 'buying a home' },
+        { id: 2, senderId: 41, ts: nowSeconds - 90, content: 'buying a home too' },
+        { id: 3, senderId: 40, ts: nowSeconds - 91 * 86400, content: 'old buying a home note' },
+      ],
+    })
+    env.seed({
+      id: 'missing-owner-session',
+      name: 'Missing owner session',
+      type: 'private',
+      members: [{ id: 50, platformId: 'someone', name: 'Someone' }],
+      messages: [{ id: 1, senderId: 50, ts: nowSeconds - 80, content: 'buying a home' }],
+    })
+    const service = createCrossChatAnalysisService({
+      adapter: env.adapter,
+      contactsService,
+      now: () => nowSeconds * 1000,
+    })
+    const result = await service.searchMessages({
+      keywords: ['buying a home'],
+      recentDays: 90,
+      sender: 'owner',
+      maxSessions: 10,
+      maxEvidence: 10,
+    })
+
+    assert.deepEqual(
+      result.messages.map((message) => [message.sessionId, message.messageId, message.senderId]),
+      [['recent-owner-session', 1, 40]]
+    )
+    assert.deepEqual(result.appliedFilters, {
+      startTs: nowSeconds - 90 * 86400,
+      endTs: nowSeconds,
+      recentDays: 90,
+      sender: 'owner',
+    })
+    assert.deepEqual(result.coverage.ownerResolution, {
+      resolvedSessions: 1,
+      missingOwnerSessions: 4,
+      unresolvedOwnerSessions: 0,
+    })
+  } finally {
+    env.cleanup()
+  }
+})
+
+test('search allows empty keywords for scoped sampling but rejects unscoped scans', async () => {
   const { env, contactsService } = createFixture()
   try {
     const service = createCrossChatAnalysisService({ adapter: env.adapter, contactsService })
     await assert.rejects(() => service.searchMessages({ keywords: [] }), /keyword/i)
+    const scoped = await service.searchMessages({
+      keywords: [],
+      scopes: [{ sessionId: 'group-work', memberIds: [20] }],
+      maxEvidence: 10,
+    })
+    assert.deepEqual(
+      scoped.messages.map((message) => [message.sessionId, message.messageId, message.senderId]),
+      [
+        ['group-work', 3, 20],
+        ['group-work', 1, 20],
+      ]
+    )
 
     const controller = new AbortController()
     controller.abort()

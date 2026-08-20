@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type {
   AIEntityRef,
+  CrossChatContactLookupResult,
   CrossChatEntityResolution,
   CrossChatMessageContextResult,
   CrossChatOverviewResult,
@@ -13,6 +14,13 @@ import type { CrossChatAnalysisToolService, CrossChatToolExecutionContext } from
 
 function createContext(overrides: Partial<CrossChatAnalysisToolService> = {}): CrossChatToolExecutionContext {
   const service: CrossChatAnalysisToolService = {
+    lookupContact: (query: string): CrossChatContactLookupResult => ({
+      query,
+      status: 'not_found',
+      cacheStatus: 'fresh',
+      totalCandidates: 0,
+      candidates: [],
+    }),
     resolveEntities: (_refs: AIEntityRef[]): CrossChatEntityResolution => ({
       contacts: [],
       sessions: [],
@@ -43,6 +51,12 @@ function createContext(overrides: Partial<CrossChatAnalysisToolService> = {}): C
         },
       ],
       totalMatches: 1,
+      appliedFilters: {
+        startTs: null,
+        endTs: null,
+        recentDays: null,
+        sender: 'all',
+      },
       coverage: {
         candidateSessions: 1,
         scannedSessions: 1,
@@ -103,6 +117,97 @@ describe('cross-chat agent registry', () => {
     }
   })
 
+  it('resolves a unique contact name before continuing with stable scopes', async () => {
+    let resolvedRefs: AIEntityRef[] = []
+    const context = createContext({
+      lookupContact: () => ({
+        query: '小红',
+        status: 'resolved',
+        cacheStatus: 'fresh',
+        totalCandidates: 1,
+        candidates: [
+          {
+            contactKey: 'test:xiaohong',
+            displayName: '小红',
+            platform: 'test',
+            aliases: [],
+            sourceSessions: [{ id: 'private-xiaohong', name: '小红', type: ChatType.PRIVATE }],
+          },
+        ],
+      }),
+      resolveEntities: (refs) => {
+        resolvedRefs = refs
+        return {
+          contacts: [],
+          sessions: [],
+          unresolved: [],
+          coverage: {
+            requestedEntities: refs.length,
+            resolvedEntities: refs.length,
+            candidateSessions: 1,
+            resolvedSessions: 1,
+            failedSessions: 0,
+          },
+        }
+      },
+    } as Partial<CrossChatAnalysisToolService>)
+    const tool = CROSS_CHAT_AGENT_TOOL_REGISTRY.find((item) => item.name === 'resolve_chat_entities')
+    assert.ok(tool)
+
+    const result = await tool.handler({ entities: [{ type: 'contact', displayName: '小红' }] }, context)
+    assert.deepEqual(resolvedRefs, [{ type: 'contact', contactKey: 'test:xiaohong', displayName: '小红' }])
+    assert.equal((result.data as { contactLookups: Array<{ status: string }> }).contactLookups[0]?.status, 'resolved')
+  })
+
+  it('returns ambiguous contact candidates without choosing one', async () => {
+    let resolvedRefs: AIEntityRef[] = []
+    const context = createContext({
+      lookupContact: () => ({
+        query: '小红',
+        status: 'ambiguous',
+        cacheStatus: 'fresh',
+        totalCandidates: 2,
+        candidates: [
+          {
+            contactKey: 'test:xiaohong-1',
+            displayName: '小红',
+            platform: 'test',
+            aliases: ['小红 A'],
+            sourceSessions: [{ id: 'private-1', name: '小红 A', type: ChatType.PRIVATE }],
+          },
+          {
+            contactKey: 'test:xiaohong-2',
+            displayName: '小红',
+            platform: 'test',
+            aliases: ['小红 B'],
+            sourceSessions: [{ id: 'private-2', name: '小红 B', type: ChatType.PRIVATE }],
+          },
+        ],
+      }),
+      resolveEntities: (refs) => {
+        resolvedRefs = refs
+        return {
+          contacts: [],
+          sessions: [],
+          unresolved: [],
+          coverage: {
+            requestedEntities: refs.length,
+            resolvedEntities: 0,
+            candidateSessions: 0,
+            resolvedSessions: 0,
+            failedSessions: 0,
+          },
+        }
+      },
+    } as Partial<CrossChatAnalysisToolService>)
+    const tool = CROSS_CHAT_AGENT_TOOL_REGISTRY.find((item) => item.name === 'resolve_chat_entities')
+    assert.ok(tool)
+
+    const result = await tool.handler({ entities: [{ type: 'contact', displayName: '小红' }] }, context)
+    assert.deepEqual(resolvedRefs, [])
+    assert.equal((result.data as { contactLookups: Array<{ status: string }> }).contactLookups[0]?.status, 'ambiguous')
+  })
+
   it('sanitizes each session before returning global search evidence', async () => {
     const tool = CROSS_CHAT_AGENT_TOOL_REGISTRY.find((item) => item.name === 'search_messages_globally')
     assert.ok(tool)
@@ -125,6 +230,98 @@ describe('cross-chat agent registry', () => {
         snippet: '[redacted]',
       },
     ])
+  })
+
+  it('allows recent-message sampling only when explicit scopes are present', async () => {
+    let captured: unknown
+    const context = createContext({
+      searchMessages: async (request) => {
+        captured = request
+        return {
+          messages: [],
+          totalMatches: 0,
+          appliedFilters: {
+            startTs: null,
+            endTs: null,
+            recentDays: null,
+            sender: 'all',
+          },
+          coverage: {
+            candidateSessions: 1,
+            scannedSessions: 1,
+            matchedSessions: 0,
+            failedSessions: 0,
+            truncated: false,
+            truncatedReasons: [],
+          },
+        }
+      },
+    })
+    const tool = CROSS_CHAT_AGENT_TOOL_REGISTRY.find((item) => item.name === 'search_messages_globally')
+    assert.ok(tool)
+    await tool.handler({ scopes: [{ sessionId: 'session-a', memberIds: [2] }] }, context)
+    assert.deepEqual(captured, {
+      keywords: [],
+      scopes: [{ sessionId: 'session-a', memberIds: [2], label: undefined }],
+      startTs: undefined,
+      endTs: undefined,
+      recentDays: undefined,
+      sender: 'all',
+      matchMode: 'any',
+      sort: 'desc',
+      maxSessions: undefined,
+      maxEvidence: undefined,
+      maxWallTimeMs: undefined,
+    })
+  })
+
+  it('forwards relative time and owner-only filters for global discovery', async () => {
+    let captured: unknown
+    const context = createContext({
+      searchMessages: async (request) => {
+        captured = request
+        return {
+          messages: [],
+          totalMatches: 0,
+          appliedFilters: {
+            startTs: 100,
+            endTs: null,
+            recentDays: 90,
+            sender: 'owner',
+          },
+          coverage: {
+            candidateSessions: 1,
+            scannedSessions: 1,
+            matchedSessions: 0,
+            failedSessions: 0,
+            ownerResolution: {
+              resolvedSessions: 1,
+              missingOwnerSessions: 0,
+              unresolvedOwnerSessions: 0,
+            },
+            truncated: false,
+            truncatedReasons: [],
+          },
+        }
+      },
+    })
+    const tool = CROSS_CHAT_AGENT_TOOL_REGISTRY.find((item) => item.name === 'search_messages_globally')
+    assert.ok(tool)
+    await tool.handler({ keywords: ['买房'], recent_days: 90, sender: 'owner' }, context)
+
+    assert.deepEqual(captured, {
+      keywords: ['买房'],
+      scopes: undefined,
+      startTs: undefined,
+      endTs: undefined,
+      recentDays: 90,
+      sender: 'owner',
+      matchMode: 'any',
+      sort: 'desc',
+      maxSessions: undefined,
+      maxEvidence: undefined,
+      maxWallTimeMs: undefined,
+    })
   })
 
   it('requires compound source identity for cross-chat context lookup', async () => {

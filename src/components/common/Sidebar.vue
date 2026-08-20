@@ -557,8 +557,8 @@ function getAvatarColorClass(session: AnalysisSession, isActive: boolean) {
 
         <SidebarButton
           v-if="props.backendFeatures"
-          icon="i-heroicons-sparkles"
-          :title="t('layout.aiAnalysis')"
+          icon="i-heroicons-chat-bubble-left-ellipsis"
+          :title="t('analysis.tabs.aiChat')"
           :active="isGlobalAIPage"
           @click="openGlobalAI"
         />

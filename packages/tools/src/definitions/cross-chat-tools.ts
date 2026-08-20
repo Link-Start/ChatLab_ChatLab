@@ -1,5 +1,6 @@
 import type {
   AIEntityRef,
+  CrossChatContactLookupResult,
   CrossChatEvidencePayload,
   CrossChatMessageSource,
   CrossChatSearchScope,
@@ -23,7 +24,8 @@ const resolveSchema: JsonSchema = {
   properties: {
     entities: {
       type: 'array',
-      description: 'Structured contact/session refs copied from <chatlab_entity_refs> in the user message or history',
+      description:
+        'Contact or session references. A contact may use a stable contactKey or a displayName lookup from the user text.',
       items: {
         type: 'object',
         properties: {
@@ -46,7 +48,8 @@ const searchSchema: JsonSchema = {
     keywords: {
       type: 'array',
       items: { type: 'string' },
-      description: 'Exact substring keywords; at least one is required',
+      description:
+        'Exact substring keywords. May be omitted only with explicit scopes to sample recent messages from those scopes.',
     },
     scopes: {
       type: 'array',
@@ -54,13 +57,23 @@ const searchSchema: JsonSchema = {
       items: scopeItems,
     },
     match_mode: { type: 'string', enum: ['any', 'all'], description: 'Whether any or all keywords must match' },
+    recent_days: {
+      type: 'number',
+      description:
+        'Relative time window ending now. Use 90 when the user says recent/recently without a more specific range.',
+    },
+    sender: {
+      type: 'string',
+      enum: ['all', 'owner'],
+      description:
+        "Message sender filter. Use owner when the user's wording makes them the subject, such as 'I discussed buying a home'.",
+    },
     sort: { type: 'string', enum: ['asc', 'desc'], description: 'Timestamp order; defaults to newest first' },
     max_sessions: { type: 'number', description: 'Maximum sessions to scan' },
     max_evidence: { type: 'number', description: 'Maximum evidence messages returned' },
     max_wall_time_ms: { type: 'number', description: 'Maximum wall time for this scan' },
     ...timeParamProperties,
   },
-  required: ['keywords'],
 }
 
 const contextSchema: JsonSchema = {
@@ -88,9 +101,27 @@ const overviewSchema: JsonSchema = {
 }
 
 function resolveHandler(params: Record<string, unknown>, context: CrossChatToolExecutionContext): ToolResult {
-  const refs = parseEntityRefs(params.entities)
-  const resolution = context.analysisService.resolveEntities(refs)
-  return { content: JSON.stringify(resolution), data: resolution }
+  const inputs = parseEntityInputs(params.entities)
+  const refs: AIEntityRef[] = []
+  const contactLookups: CrossChatContactLookupResult[] = []
+  for (const input of inputs) {
+    if (input.type === 'contact' && !input.contactKey) {
+      const lookup = context.analysisService.lookupContact(input.displayName)
+      contactLookups.push(lookup)
+      if (lookup.status === 'resolved' && lookup.candidates[0]) {
+        refs.push({
+          type: 'contact',
+          contactKey: lookup.candidates[0].contactKey,
+          displayName: lookup.candidates[0].displayName,
+        })
+      }
+      continue
+    }
+    refs.push(input as AIEntityRef)
+  }
+  const resolution = context.analysisService.resolveEntities(dedupeEntityRefs(refs))
+  const data = { ...resolution, contactLookups }
+  return { content: JSON.stringify(data), data }
 }
 
 async function searchHandler(
@@ -98,13 +129,15 @@ async function searchHandler(
   context: CrossChatToolExecutionContext
 ): Promise<ToolResult> {
   const timeFilter = parseExtendedTimeParams(params)
-  const keywords = parseStringArray(params.keywords)
+  const keywords = params.keywords === undefined ? [] : parseStringArray(params.keywords)
   const result = await context.analysisService.searchMessages(
     {
       keywords,
       scopes: params.scopes === undefined ? undefined : parseScopes(params.scopes),
       startTs: timeFilter?.startTs,
       endTs: timeFilter?.endTs,
+      recentDays: parseOptionalNumber(params.recent_days),
+      sender: params.sender === 'owner' ? 'owner' : 'all',
       matchMode: params.match_mode === 'all' ? 'all' : 'any',
       sort: params.sort === 'asc' ? 'asc' : 'desc',
       maxSessions: parseOptionalNumber(params.max_sessions),
@@ -139,6 +172,7 @@ async function searchHandler(
   const data = {
     totalMatches: result.totalMatches,
     returned: limited.messages.length,
+    appliedFilters: result.appliedFilters,
     coverage,
     messages: limited.messages.map(toModelMessage),
     crossChatEvidence: evidence,
@@ -195,7 +229,7 @@ async function overviewHandler(
 export const resolveChatEntitiesTool: ToolDefinition<CrossChatToolExecutionContext> = {
   name: 'resolve_chat_entities',
   description:
-    "Resolve structured contact/session references into exact source sessions and each database's local member IDs. Call this before scoped cross-chat search or overview. Never resolve people by display-name matching.",
+    'Resolve contacts and sessions into exact source scopes. Stable refs resolve directly; typed contact names search the contact catalog. Continue automatically for one candidate, ask the user to choose when contactLookups reports ambiguous, and never guess among multiple candidates.',
   inputSchema: resolveSchema,
   handler: resolveHandler,
   category: 'core',
@@ -204,7 +238,7 @@ export const resolveChatEntitiesTool: ToolDefinition<CrossChatToolExecutionConte
 export const searchMessagesGloballyTool: ToolDefinition<CrossChatToolExecutionContext> = {
   name: 'search_messages_globally',
   description:
-    'Search exact keywords across resolved contacts or sessions. Omit scopes only for an explicit global discovery request. Results include source session identity, coverage, and truncation status.',
+    "Search exact keywords across resolved contacts or sessions. Use recent_days=90 when 'recent' has no explicit duration, and sender=owner when the user is the subject of the requested action. Owner hits are discovery seeds; expand their context to identify other participants. With explicit scopes, omit keywords to sample recent messages. Unscoped global discovery always requires keywords. Results include applied filters, source identity, coverage, and truncation status.",
   inputSchema: searchSchema,
   handler: searchHandler,
   category: 'core',
@@ -230,14 +264,24 @@ export const getCrossChatOverviewTool: ToolDefinition<CrossChatToolExecutionCont
   category: 'core',
 }
 
-function parseEntityRefs(value: unknown): AIEntityRef[] {
+type ParsedEntityInput =
+  | { type: 'contact'; contactKey?: string; displayName: string }
+  | Extract<AIEntityRef, { type: 'session' }>
+
+function parseEntityInputs(value: unknown): ParsedEntityInput[] {
   if (!Array.isArray(value)) throw new Error('entities must be an array')
   return value.map((item) => {
     if (!isRecord(item)) throw new Error('each entity must be an object')
     const type = requireString(item.type, 'entity.type')
     const displayName = requireString(item.displayName, 'entity.displayName')
     if (type === 'contact') {
-      return { type, contactKey: requireString(item.contactKey, 'entity.contactKey'), displayName }
+      return {
+        type,
+        ...(typeof item.contactKey === 'string' && item.contactKey.trim()
+          ? { contactKey: item.contactKey.trim() }
+          : {}),
+        displayName,
+      }
     }
     if (type === 'session') {
       const sessionType = item.sessionType === 'private' ? 'private' : item.sessionType === 'group' ? 'group' : null
@@ -246,6 +290,15 @@ function parseEntityRefs(value: unknown): AIEntityRef[] {
     }
     throw new Error('entity.type must be contact or session')
   })
+}
+
+function dedupeEntityRefs(refs: AIEntityRef[]): AIEntityRef[] {
+  const byKey = new Map<string, AIEntityRef>()
+  for (const ref of refs) {
+    const key = ref.type === 'contact' ? `contact:${ref.contactKey}` : `session:${ref.sessionId}`
+    byKey.set(key, ref)
+  }
+  return [...byKey.values()]
 }
 
 function parseScopes(value: unknown): CrossChatSearchScope[] {

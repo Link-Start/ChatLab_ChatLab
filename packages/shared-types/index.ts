@@ -526,6 +526,26 @@ export interface CrossChatResolvedContactSession extends CrossChatSessionDescrip
   memberName: string
 }
 
+export interface CrossChatContactCandidate {
+  contactKey: string
+  displayName: string
+  platform: ChatPlatform
+  aliases: string[]
+  sourceSessions: Array<{
+    id: string
+    name: string
+    type: ChatType
+  }>
+}
+
+export interface CrossChatContactLookupResult {
+  query: string
+  status: 'resolved' | 'ambiguous' | 'not_found' | 'unavailable'
+  cacheStatus: ContactsCacheStatus
+  totalCandidates: number
+  candidates: CrossChatContactCandidate[]
+}
+
 export interface CrossChatResolvedContact {
   ref: Extract<AIEntityRef, { type: 'contact' }>
   status: 'resolved' | 'partial' | 'unresolved'
@@ -570,6 +590,8 @@ export interface CrossChatSearchRequest {
   scopes?: CrossChatSearchScope[]
   startTs?: number
   endTs?: number
+  recentDays?: number
+  sender?: 'all' | 'owner'
   matchMode?: 'any' | 'all'
   sort?: 'asc' | 'desc'
   maxSessions?: number
@@ -603,11 +625,22 @@ export type CrossChatTruncationReason = 'session_budget' | 'evidence_budget' | '
 export interface CrossChatSearchResult {
   messages: CrossChatMessageSource[]
   totalMatches: number
+  appliedFilters: {
+    startTs: number | null
+    endTs: number | null
+    recentDays: number | null
+    sender: 'all' | 'owner'
+  }
   coverage: {
     candidateSessions: number
     scannedSessions: number
     matchedSessions: number
     failedSessions: number
+    ownerResolution?: {
+      resolvedSessions: number
+      missingOwnerSessions: number
+      unresolvedOwnerSessions: number
+    }
     truncated: boolean
     truncatedReasons: CrossChatTruncationReason[]
   }

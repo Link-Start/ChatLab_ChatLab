@@ -7,6 +7,7 @@
 import type { ChartPayload, DatabaseAdapter, EvidenceTimeRangeMs } from '@openchatlab/core'
 import type {
   AIEntityRef,
+  CrossChatContactLookupResult,
   CrossChatEntityResolution,
   CrossChatMessageContextRequest,
   CrossChatMessageContextResult,
@@ -355,6 +356,7 @@ export interface ToolExecutionContext {
 }
 
 export interface CrossChatAnalysisToolService {
+  lookupContact(query: string): CrossChatContactLookupResult
   resolveEntities(refs: AIEntityRef[]): CrossChatEntityResolution
   searchMessages(request: CrossChatSearchRequest, options?: CrossChatOperationOptions): Promise<CrossChatSearchResult>
   getMessageContext(request: CrossChatMessageContextRequest): CrossChatMessageContextResult

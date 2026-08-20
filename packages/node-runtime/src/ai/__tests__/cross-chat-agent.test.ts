@@ -15,6 +15,13 @@ describe('cross-chat agent prompt', () => {
     }
     assert.match(prompt, /不构成永久锁定范围/)
     assert.match(prompt, /交集、并集/)
+    assert.match(prompt, /唯一候选自动继续/)
+    assert.match(prompt, /多个候选必须停下来请用户确认/)
+    assert.match(prompt, /限定 scopes 时，可以不提供关键词/)
+    assert.match(prompt, /最近.*90 天/)
+    assert.match(prompt, /recent_days/)
+    assert.match(prompt, /sender.*owner/)
+    assert.match(prompt, /本人发言.*检索种子/)
     assert.match(prompt, /coverage/)
     assert.doesNotMatch(prompt, /可以使用.*execute_sql/)
   })
