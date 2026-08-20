@@ -5,11 +5,12 @@ import path from 'node:path'
 import test from 'node:test'
 import { CHAT_DB_SCHEMA } from '@openchatlab/core'
 import type { DatabaseAdapter } from '@openchatlab/core'
-import type { ContactDetailResponse, ContactItem } from '@openchatlab/shared-types'
+import { ChatType, type ContactDetailResponse, type ContactItem } from '@openchatlab/shared-types'
 import { openBetterSqliteDatabase } from '../../better-sqlite3-adapter'
 import type { ContactsService } from '../contacts'
 import type { SessionRuntimeAdapter } from '../adapters'
 import { createCrossChatAnalysisService } from './service'
+import { preprocessCrossChatMessages } from './preprocess'
 
 const nativeBinding = path.resolve('apps/cli/native/better_sqlite3.node')
 
@@ -179,8 +180,8 @@ function createFixture(): {
           platformId: 'alice',
           displayName: 'Alice',
           sourceSessions: [
-            { id: 'private-alice', name: 'Alice private', platform: 'test', type: 'private' },
-            { id: 'group-work', name: 'Work group', platform: 'test', type: 'group' },
+            { id: 'private-alice', name: 'Alice private', platform: 'test', type: ChatType.PRIVATE },
+            { id: 'group-work', name: 'Work group', platform: 'test', type: ChatType.GROUP },
           ],
         })
       ),
@@ -194,7 +195,7 @@ function createFixture(): {
           displayName: 'Alice',
           sessionScoped: true,
           sessionId: 'group-other',
-          sourceSessions: [{ id: 'group-other', name: 'Other group', platform: 'test', type: 'group' }],
+          sourceSessions: [{ id: 'group-other', name: 'Other group', platform: 'test', type: ChatType.GROUP }],
         })
       ),
     ],
@@ -379,6 +380,51 @@ test('overview returns separate scoped totals instead of combining unrelated sen
         ['Other Alice', 1, 200, 200],
       ]
     )
+  } finally {
+    env.cleanup()
+  }
+})
+
+test('cross-chat anonymization namespaces local member ids by source session', () => {
+  const { env } = createFixture()
+  try {
+    const base = {
+      sessionName: 'Session',
+      sessionType: ChatType.GROUP,
+      platform: 'test',
+      lastMessageTs: 1,
+      messageId: 1,
+      senderId: 10,
+      senderName: 'Alice',
+      senderPlatformId: 'alice',
+      content: 'hello',
+      timestamp: 1,
+      messageType: 0,
+    }
+    const config = {
+      dataCleaning: false,
+      mergeConsecutive: true,
+      blacklistKeywords: [],
+      denoise: false,
+      desensitize: false,
+      desensitizeRules: [],
+      anonymizeNames: true,
+    }
+    const first = preprocessCrossChatMessages(
+      env.adapter,
+      'private-alice',
+      [{ ...base, sessionId: 'private-alice' }],
+      config
+    )
+    const second = preprocessCrossChatMessages(
+      env.adapter,
+      'group-work',
+      [{ ...base, sessionId: 'group-work' }],
+      config
+    )
+
+    assert.equal(first[0].senderName, 'U10@private-alice')
+    assert.equal(second[0].senderName, 'U10@group-work')
   } finally {
     env.cleanup()
   }

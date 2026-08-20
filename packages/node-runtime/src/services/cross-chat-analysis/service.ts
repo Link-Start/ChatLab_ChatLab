@@ -7,29 +7,29 @@ import {
   searchMessagesByKeywords,
   type DatabaseAdapter,
 } from '@openchatlab/core'
-import { ChatType } from '@openchatlab/shared-types'
-import type { AIEntityRef } from '../../ai/chats'
+import {
+  ChatType,
+  type AIEntityRef,
+  type CrossChatEntityResolution,
+  type CrossChatMessageContextRequest,
+  type CrossChatMessageContextResult,
+  type CrossChatMessageSource,
+  type CrossChatOperationOptions,
+  type CrossChatOverviewItem,
+  type CrossChatOverviewRequest,
+  type CrossChatOverviewResult,
+  type CrossChatResolvedContact,
+  type CrossChatResolvedSession,
+  type CrossChatSearchRequest,
+  type CrossChatSearchResult,
+  type CrossChatSearchScope,
+  type CrossChatSessionDescriptor,
+  type CrossChatTruncationReason,
+  type CrossChatUnresolvedEntity,
+} from '@openchatlab/shared-types'
 import { appLogger } from '../../logging/app-logger'
 import type { SessionRuntimeAdapter } from '../adapters'
 import type { ContactsService } from '../contacts'
-import type {
-  CrossChatEntityResolution,
-  CrossChatMessageContextRequest,
-  CrossChatMessageContextResult,
-  CrossChatMessageSource,
-  CrossChatOperationOptions,
-  CrossChatOverviewItem,
-  CrossChatOverviewRequest,
-  CrossChatOverviewResult,
-  CrossChatResolvedContact,
-  CrossChatResolvedSession,
-  CrossChatSearchRequest,
-  CrossChatSearchResult,
-  CrossChatSearchScope,
-  CrossChatSessionDescriptor,
-  CrossChatTruncationReason,
-  CrossChatUnresolvedEntity,
-} from './types'
 
 const DEFAULT_MAX_SESSIONS = 24
 const MAX_MAX_SESSIONS = 100
