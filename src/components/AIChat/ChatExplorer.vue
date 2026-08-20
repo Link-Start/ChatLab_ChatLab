@@ -449,8 +449,8 @@ watch(
     />
 
     <!-- 右侧：对话区域（始终显示） -->
-    <div class="flex h-full flex-1 overflow-hidden">
-      <div class="flex h-full flex-1">
+    <div class="flex h-full min-w-0 flex-1 overflow-hidden">
+      <div class="flex h-full min-w-0 flex-1">
         <div class="relative flex min-w-[480px] flex-1 flex-col overflow-hidden">
           <!-- 顶部：有消息时显示助手切换按钮 -->
           <template v-if="messages.length > 0 || isAIThinking">
