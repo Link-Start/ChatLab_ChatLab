@@ -3,13 +3,13 @@ import test from 'node:test'
 import { createPinia, setActivePinia } from 'pinia'
 import { ref } from 'vue'
 
-test('restores the requested AI chat only when it belongs to the current session', async (t) => {
+test('restores the requested or latest AI chat only when it belongs to the current session', async (t) => {
   const aiService = {
     getAIChat: async (id: string) =>
-      id === 'chat-one'
+      id === 'chat-one' || id === 'chat-latest'
         ? {
             id,
-            sessionId: 'session-one',
+            sessionId: id === 'chat-one' ? 'session-one' : 'session-three',
             kind: 'session' as const,
             title: 'Saved chat',
             assistantId: 'assistant-one',
@@ -17,6 +17,20 @@ test('restores the requested AI chat only when it belongs to the current session
             updatedAt: 1,
           }
         : null,
+    getAIChats: async (sessionId: string) =>
+      sessionId === 'session-three'
+        ? [
+            {
+              id: 'chat-latest',
+              sessionId,
+              kind: 'session' as const,
+              title: 'Latest chat',
+              assistantId: 'assistant-one',
+              createdAt: 2,
+              updatedAt: 2,
+            },
+          ]
+        : [],
     getMessages: async () => [
       {
         id: 'message-one',
@@ -92,4 +106,15 @@ test('restores the requested AI chat only when it belongs to the current session
 
   assert.equal(second.state.currentAIChatId, null)
   assert.equal(second.state.messages.length, 0)
+
+  const third = store.ensureSessionState({
+    sessionId: 'session-three',
+    sessionName: 'Third session',
+    chatType: 'private',
+    locale: 'zh-CN',
+  })
+  await store.resetToSelectorOnEnter(third.chatKey)
+
+  assert.equal(third.state.currentAIChatId, 'chat-latest')
+  assert.equal(third.state.messages[0]?.content, 'Saved answer')
 })
