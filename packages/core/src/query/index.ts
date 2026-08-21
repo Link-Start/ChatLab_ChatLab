@@ -83,6 +83,7 @@ export {
   getGroupRelationshipGraphFacts,
   getLatestContactMessageTs,
   getNonSystemMembersForContacts,
+  getParticipantSessionFacts,
   getPrivateContactFacts,
   isValidContactPlatformId,
   resolveOwnerMember,
@@ -105,6 +106,8 @@ export type {
   GroupContactFacts,
   GroupRelationshipGraphFacts,
   PrivateContactFacts,
+  ParticipantSessionFacts,
+  ParticipantSessionFactsOptions,
   RelationshipGraphEdgeFact,
   RelationshipGraphMemberFact,
 } from './contact-queries'
