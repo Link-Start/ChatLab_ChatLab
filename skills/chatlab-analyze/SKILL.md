@@ -1,7 +1,6 @@
 ---
 name: chatlab-analyze
-description: >-
-  Query and analyze imported ChatLab chats with clb: find evidence, summarize topics, and compare activity or relationships. 查询和分析 ChatLab 已导入聊天记录：查找证据、总结话题、比较活跃度或关系。
+description: Query and analyze imported ChatLab chats with clb, using message evidence.
 ---
 
 # ChatLab Analyze

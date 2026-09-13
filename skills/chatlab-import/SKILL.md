@@ -1,7 +1,6 @@
 ---
 name: chatlab-import
-description: >-
-  Preview and import supported local chat exports into ChatLab, including incremental updates. 预览并导入 ChatLab 支持的本地聊天导出，支持增量更新。
+description: Preview and import supported local chat exports into ChatLab, including incremental updates.
 ---
 
 # ChatLab Import

@@ -1,7 +1,6 @@
 ---
 name: chatlab-import-cn
-description: >-
-  Deprecated compatibility entry for local imports from released ChatLab clients; prefer chatlab-import for new installs. 旧版 ChatLab 导入命令的兼容入口，新安装请使用 chatlab-import。
+description: Legacy import entry for released ChatLab clients; use chatlab-import for new installs.
 ---
 
 # ChatLab Import (Legacy Compatibility)

@@ -1,7 +1,6 @@
 ---
 name: chatlab-convert
-description: >-
-  Convert unsupported local chat exports into validated ChatLab JSONL or JSON with a reusable local script. 用可复用的本地脚本，将不受支持的聊天导出转换并验证为 ChatLab JSONL 或 JSON。
+description: Convert unsupported local chat exports into validated ChatLab JSONL or JSON.
 ---
 
 # ChatLab Convert
